@@ -78,6 +78,22 @@ def test_redact_patterns() -> None:
     assert "short=aGVsbG8=" in out  # short base64-looking text is left alone
 
 
+@pytest.mark.parametrize(
+    "text",
+    [
+        "{'type': 'base64', 'media_type': 'image/png', 'data': 'iVBORw0KGgoAAAANSUhEUg=='}",
+        '{"type": "base64", "media_type": "image/png", "data": "iVBORw0KGgo="}',
+        "'data':'aGVsbG8='",
+    ],
+    ids=["sdk-repr", "json", "tiny"],
+)
+def test_image_data_redacted_whatever_its_length(text: str) -> None:
+    """Regression: CI's Pillow produced a test PNG whose base64 was < 200 chars."""
+    out = redact(text)
+    assert "iVBOR" not in out and "aGVsbG8" not in out
+    assert REDACTED in out
+
+
 def test_redact_explicit_secret_without_known_prefix() -> None:
     assert redact("token=hunter2hunter2", ["hunter2hunter2"]) == f"token={REDACTED}"
 

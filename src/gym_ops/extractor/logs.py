@@ -21,7 +21,10 @@ _PATTERNS: Final = (
     re.compile(r"sk-ant-[A-Za-z0-9_\-]+"),  # Anthropic keys
     re.compile(r"(?i)(bearer\s+)[^\s\"',}]+"),
     re.compile(r"(?i)(x-api-key[\"']?\s*[:=]\s*[\"']?)[^\s\"',}]+"),
-    re.compile(r"[A-Za-z0-9+/]{200,}={0,2}"),  # base64 blobs (image data)
+    # Image payloads: the value of any `data` key, whatever its length (a small image's
+    # base64 can be shorter than any blob threshold), e.g. SDK debug "Request options".
+    re.compile(r"(?i)([\"']data[\"']\s*:\s*[\"'])[A-Za-z0-9+/=_\-]+"),
+    re.compile(r"[A-Za-z0-9+/]{200,}={0,2}"),  # any other long base64 blob
 )
 
 # Attributes every LogRecord has; anything else came from `extra=` and is emitted.
