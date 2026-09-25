@@ -52,7 +52,7 @@ Each FR has an acceptance criterion (AC) that an automated test verifies. Test p
 
 ### Receipt generation (`gym_ops.receipts`)
 
-**FR-4 — Synthetic receipts with ground truth.** `make receipts` renders N (default 100) PNG receipts into `data/receipts/` plus `data/labels.jsonl` with one ground-truth record per image. Receipts are derived from real bills in `data/gym.db` (read through `get_readonly_connection`), selected deterministically from `--seed` (default 7); `--n-max` is a hard safety cap on N.
+**FR-4 — Synthetic receipts with ground truth.** `make receipts` renders N (default 100) PNG receipts into `data/receipts/` plus `data/labels.jsonl` with one ground-truth record per image. Receipts are derived from real bills in `data/gym.db` (read through `get_readonly_connection`), selected deterministically from `--seed` (default 7); `--n-max` is a hard safety cap on N. Text is drawn with DejaVu Sans 2.37 bundled under `assets/fonts/` with its license; the files are SHA-256-pinned by a test because a changed font changes every image's bytes. If the files are missing, rendering falls back to Pillow's built-in font, never a system-installed copy.
 - *Label (`gym_ops.receipts.labels.ReceiptLabel`):* `receipt_id`, `file`, `scenario` (FR-5 enum), `template`, `difficulty` (list of tags, empty = clean), `adversarial`, `width`, `height`; `truth` = the six `ExtractedPayment` fields (`payer_name`, `amount_cents`, `currency`, `transfer_date`, `reference`, `bank_name`); `expected` = `bill_reference`, `bill_status_after_reconciliation`, `unidentified_reason` — the outcome of FR-14 for this receipt once **all** receipts are reconciled (either a bill and its final status, or a reason alone).
 - *AC:* `data/receipts/` contains exactly N `.png` files and `labels.jsonl` has N lines, each validating against `ReceiptLabel`; each label's `receipt_id` matches exactly one filename; every image's long edge is ≤ 1000 px and matches the label's `width`/`height`. Re-running produces identical labels and identical image bytes.
 - *AC (oracle):* loading every label's `truth` into `extracted_payments` on a copy of the seeded DB (payer resolved by exact full name) and running FR-14 reconciliation for every billed month reproduces every label's `expected` block exactly (100%). Any eval error is therefore attributable to extraction, not to the dataset or the rules.
@@ -197,6 +197,11 @@ Resolved 2026-09-25:
 - **Q-5** Comparison model → **no**; single default model to keep spend low (A-8).
 - **Q-6** p95 latency → **reported only, not gated**. With N=100 it rests on the 5 slowest calls, dominated by network/OpenRouter variance; p50 remains the hard gate.
 - **Q-7** Eval set size → **100 receipts** (one error = 1 pp; 95% threshold allows 5 misses).
+- **Q-8** Receipt dataset design → **N = 100** (≈ $0.30 per eval run at ~$0.003 per extraction); scenario counts, canonical names and difficulty mix as in FR-5; the FR-5 70% floor uses the strict reading (single full-amount transfer leaving its bill `paid`); a reference-less transfer outside the window is labelled `no_open_bill`, the reason `reconcile.py` emits; `adversarial_injection` and `multiple_amounts` receipts are always clean.
+
+Open:
+
+- **Q-9 (Phase 5, extractor)** Payer-name → `member_id` resolution. Extracted names may differ from `members.full_name` in case, spacing or accents (e.g. `CHRISTOPHER WILLIAMS`, `Christopher  Williams`, `José` vs `Jose`), so resolution needs a normalization step (e.g. Unicode NFKC + accent folding + casefold + whitespace collapse) before matching, and must still return no member when zero or several members match (seeded data has one duplicate name). Decide the normalization, where it lives, and whether it also applies to the FR-16 `payer_name` comparison. Note: the FR-4 oracle test (`tests/receipts/test_oracle_reconciliation.py`) currently resolves by **exact** `full_name`, which is sufficient only because it feeds ground truth, not model output.
 
 ## 8. Traceability
 
