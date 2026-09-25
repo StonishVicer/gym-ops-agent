@@ -1,4 +1,4 @@
-.PHONY: setup seed receipts mcp extract eval test test-ci lint all
+.PHONY: setup seed receipts mcp extract extract-smoke eval test test-ci test-live lint all
 
 UV_RUN := uv run
 
@@ -19,17 +19,27 @@ mcp:
 extract:
 	$(UV_RUN) python -m gym_ops.extractor
 
+# Three receipts, ~$0.01: a clean exact_payment, one rotated + blurred, one adversarial_injection.
+SMOKE_RECEIPTS := rcpt-0008.png rcpt-0013.png rcpt-0033.png
+
+extract-smoke:
+	$(UV_RUN) python -m gym_ops.extractor $(addprefix --only ,$(SMOKE_RECEIPTS))
+
 eval:
 	$(UV_RUN) python -m gym_ops.eval
 
 COV := --cov --cov-report=term-missing --cov-fail-under=85
 
+# `live` tests spend money on the real API: never part of `test` or `test-ci`.
 test:
-	$(UV_RUN) pytest $(COV)
+	$(UV_RUN) pytest $(COV) -m "not live"
 
-# CI: skip wall-clock `perf` tests; a slow shared runner must not fail the build at random.
+# CI: also skip wall-clock `perf` tests; a slow shared runner must not fail the build at random.
 test-ci:
-	$(UV_RUN) pytest $(COV) -m "not perf"
+	$(UV_RUN) pytest $(COV) -m "not perf and not live"
+
+test-live:
+	$(UV_RUN) pytest -m live
 
 lint:
 	$(UV_RUN) ruff check .
