@@ -2,7 +2,7 @@
 
 from functools import lru_cache
 
-from pydantic import SecretStr
+from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -19,6 +19,10 @@ class Settings(BaseSettings):
     # Source: https://openrouter.ai/anthropic/claude-haiku-4.5 (retrieved 2026-09-25).
     INPUT_USD_PER_MTOK: float = 1.00
     OUTPUT_USD_PER_MTOK: float = 5.00
+
+    # Reconciliation: a reference-less transfer links to a bill only if its date is
+    # within this many days of the bill's due date (docs/adr/0005-reconciliation-rules.md).
+    MATCH_WINDOW_DAYS: int = Field(default=5, ge=0)
 
     def require_openrouter_api_key(self) -> SecretStr:
         if self.OPENROUTER_API_KEY is None:

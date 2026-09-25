@@ -11,5 +11,6 @@ def test_defaults_without_env_file(monkeypatch: pytest.MonkeyPatch) -> None:
     assert settings.DB_PATH == "data/gym.db"
     assert settings.INPUT_USD_PER_MTOK == 1.00
     assert settings.OUTPUT_USD_PER_MTOK == 5.00
+    assert settings.MATCH_WINDOW_DAYS == 5
     with pytest.raises(ValueError, match="OPENROUTER_API_KEY"):
         settings.require_openrouter_api_key()
