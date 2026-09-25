@@ -33,6 +33,10 @@ Scenario = Literal[
     "multiple_amounts",
 ]
 
+# Receipt id namespaces: `rcpt` = dev set (seed 7, iteration), `hold` = held-out test
+# set (seed 8, headline metrics). Distinct prefixes mean ids can never collide.
+IdPrefix = Literal["rcpt", "hold"]
+
 # Bank layout templates. All three banks are fictional.
 Template = Literal["banco_demo", "banco_ficticio_del_sur", "cooperativa_ejemplo"]
 
@@ -97,7 +101,7 @@ class ReceiptLabel(BaseModel):
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    receipt_id: str = Field(pattern=r"^rcpt-[0-9]{4}$")
+    receipt_id: str = Field(pattern=r"^(rcpt|hold)-[0-9]{4}$")
     file: str  # image filename, relative to the receipts directory
     scenario: Scenario
     template: Template

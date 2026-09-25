@@ -21,6 +21,8 @@ Settings live in `gym_ops.config.Settings` (pydantic-settings, reads `.env`).
 | `make receipts` | Generate synthetic receipt images + labels |
 | `make mcp` | Run the MCP server on stdio |
 | `make extract` | Run the receipt extractor on all 100 receipts (spends money; needs explicit approval) |
+| `make holdout` | Build the held-out set: fresh `data/holdout/gym.db` + 100 `hold-` receipts (seed 8), $0 |
+| `make extract-holdout` | Run the holdout ONCE and freeze it in `eval/runs/` (spends money; needs explicit approval) |
 | `make extract-smoke` | Extract 3 receipts (clean, rotated+blurred, adversarial), ~$0.01 |
 | `make eval` | Run the eval harness |
 | `make test` | pytest with coverage, excluding `live` tests |

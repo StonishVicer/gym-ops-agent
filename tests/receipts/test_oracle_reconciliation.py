@@ -12,6 +12,8 @@ import shutil
 from datetime import date
 from pathlib import Path
 
+import pytest
+
 from gym_ops.config import Settings
 from gym_ops.db.connection import get_readonly_connection, get_write_connection
 from gym_ops.extractor.resolve import MemberDirectory
@@ -93,7 +95,11 @@ def test_window_matches_settings_default() -> None:
     assert Settings.model_fields["MATCH_WINDOW_DAYS"].default == WINDOW_DAYS
 
 
-def test_every_receipt_reconciles_as_labelled(generated: GeneratedSet, tmp_path: Path) -> None:
+@pytest.mark.parametrize("dataset", ["generated", "generated_holdout"], ids=["dev", "holdout"])
+def test_every_receipt_reconciles_as_labelled(
+    dataset: str, request: pytest.FixtureRequest, tmp_path: Path
+) -> None:
+    generated: GeneratedSet = request.getfixturevalue(dataset)
     db = tmp_path / "oracle.db"
     shutil.copy(generated.db_path, db)  # never touch data/gym.db or the shared seed
     _load_truth(db, generated.labels)

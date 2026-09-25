@@ -38,7 +38,7 @@ logger = logging.getLogger(__name__)
 DEFAULT_RECEIPTS_DIR: Final = "data/receipts"
 DEFAULT_LABELS: Final = "data/labels.jsonl"
 DEFAULT_OUT: Final = "data/extractions.jsonl"
-RECEIPT_GLOB: Final = "rcpt-*.png"
+RECEIPT_GLOB: Final = "*-[0-9][0-9][0-9][0-9].png"  # rcpt-NNNN (dev) or hold-NNNN (holdout)
 EXIT_BUDGET: Final = 2
 
 

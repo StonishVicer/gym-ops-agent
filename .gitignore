@@ -8,6 +8,7 @@
 data/receipts/
 data/labels.jsonl
 data/extractions.jsonl
+data/holdout/
 
 # Python
 __pycache__/
