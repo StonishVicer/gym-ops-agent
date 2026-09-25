@@ -6,7 +6,7 @@ Portfolio project demonstrating the Claude API and MCP on 100% synthetic gym dat
 
 1. `gym_ops.db` — SQLite schema + deterministic Faker seed (synthetic data only).
 2. `gym_ops.mcp_server` — read-only FastMCP server over stdio exposing 4 query tools.
-3. `gym_ops.receipts` — generates synthetic receipt images with ground-truth labels.
+3. `gym_ops.receipts` — renders 100 deterministic synthetic receipts (`--seed 7`) from real bills into `data/receipts/` + `data/labels.jsonl` (`truth` + expected reconciliation outcome). Scenario names are the canonical enum in SPEC FR-5.
 4. `gym_ops.extractor` — Claude vision + forced tool use via the `anthropic` SDK against OpenRouter (`base_url="https://openrouter.ai/api"`).
 5. `gym_ops.eval` — per-field accuracy, token usage, cost from `usage`, latency p50/p95.
 
@@ -23,6 +23,7 @@ Settings live in `gym_ops.config.Settings` (pydantic-settings, reads `.env`).
 | `make extract` | Run the receipt extractor |
 | `make eval` | Run the eval harness |
 | `make test` | pytest with coverage |
+| `make test-ci` | pytest with coverage, excluding `perf` tests (what CI runs) |
 | `make lint` | ruff check, ruff format --check, mypy (strict) |
 | `make all` | lint, test, seed, receipts, eval |
 
@@ -33,9 +34,12 @@ Settings live in `gym_ops.config.Settings` (pydantic-settings, reads `.env`).
 - SQL: parametrized queries only (`?` placeholders). Never build SQL with f-strings, `%`, `.format()`, or concatenation.
 - The MCP server opens SQLite read-only (`file:...?mode=ro`).
 - Use `uv run` / `uv add`; never `pip install`.
+- CI (`.github/workflows/ci.yml`): `make lint`, `make test-ci`, gitleaks; actions pinned to commit SHAs. Every PR must be green before merge.
 
 ## NEVER
 
 - Never read, print, or `cat` `.env`. Use `.env.example` for reference.
 - Never commit secrets, API keys, or generated `.db` files.
+- Never change reconciliation rules (`reconcile.py`, ADR-0005) to make the receipts oracle test pass; a mismatch means the dataset or the rules are wrong, so stop and report it.
+- Never replace files in `assets/fonts/` without updating the SHA-256 pins in `tests/receipts/test_assets.py`; a font change changes every receipt image.
 - Never set `ANTHROPIC_BASE_URL` or `ANTHROPIC_AUTH_TOKEN` env vars — they hijack Claude Code's own auth. Pass `base_url` and `api_key` to the `anthropic.Anthropic(...)` client explicitly instead.

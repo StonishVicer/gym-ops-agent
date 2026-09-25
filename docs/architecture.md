@@ -192,7 +192,7 @@ Each index is justified by a `WHERE` / `JOIN` / `GROUP BY` in a specific tool (v
 | --- | --- | --- |
 | `gym_ops.config` | `Settings` (pydantic-settings, `.env`), prices, seed | — |
 | `gym_ops.db` | DDL, connection factories (`get_write_connection`, `get_readonly_connection`), seeder | rw (seed) |
-| `gym_ops.receipts` | `generate`: pick real bills per FR-5 scenario (deterministic from `--seed`), assign templates and difficulty; `render`: draw PNGs for 3 fictional bank layouts (bundled DejaVu Sans, watermark, rotation/blur/JPEG noise); `labels`: `ReceiptLabel` with `truth` + reconciliation `expected`. Writes `data/receipts/*.png` and `data/labels.jsonl`. An oracle test replays `truth` through `reconcile.py` on a DB copy | ro |
+| `gym_ops.receipts` | `generate`: pick real bills per FR-5 scenario (deterministic from `--seed`), assign templates and difficulty; `render`: draw PNGs for 3 fictional bank layouts (bundled DejaVu Sans, SHA-256-pinned; watermark; rotation/blur/JPEG noise); `labels`: `ReceiptLabel` with `truth` + reconciliation `expected`. Writes `data/receipts/*.png` and `data/labels.jsonl`. An oracle test replays `truth` through `reconcile.py` on a DB copy | ro |
 | `gym_ops.extractor` | Anthropic client via OpenRouter, forced tool use, validation, upsert | rw (`extracted_payments` only) |
 | `gym_ops.mcp_server` | FastMCP stdio server, 4 tools, Pydantic I/O | **ro only** |
 | `gym_ops.eval` | Run extractor over labels, metrics, gates, reports | ro + extractor |
