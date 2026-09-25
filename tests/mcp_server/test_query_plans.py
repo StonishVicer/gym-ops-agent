@@ -32,6 +32,8 @@ PARAMS: dict[str, list[tuple[object, ...]]] = {
     ],
     "BILLS_DUE_BETWEEN": [("2026-08-22", "2026-10-10", 50_001)],
     "TRANSFERS_FOR_PERIOD": [("2026-08-27", "2026-10-05", "2026-09-01", "2026-09-30", 50_001)],
+    "SLOT_DATE_RANGE": [()],
+    "BILL_DUE_DATE_RANGE": [()],
 }
 
 # Indexes each query must use: the index-to-tool mapping in docs/architecture.md §2.
@@ -42,6 +44,9 @@ EXPECTED_INDEXES: dict[str, set[str]] = {
     "FIND_MEMBERS": {"idx_memberships_member"},
     "BILLS_DUE_BETWEEN": {"idx_expected_due"},
     "TRANSFERS_FOR_PERIOD": {"idx_extracted_date", "idx_extracted_reference", "idx_expected_due"},
+    # Each MIN/MAX subquery must be an index seek, not a scan of the index.
+    "SLOT_DATE_RANGE": {"idx_class_slots_starts_at"},
+    "BILL_DUE_DATE_RANGE": {"idx_expected_due"},
 }
 
 # Scans that are allowed, with the reason. Keyed by (query, table).

@@ -24,6 +24,7 @@ from gym_ops.mcp_server.server import (
 )
 
 INJECTION = "2026-09'; DROP TABLE members;--"
+PARAMETERLESS_QUERIES = {"SLOT_DATE_RANGE", "BILL_DUE_DATE_RANGE"}
 SERVER_SOURCES = sorted(Path(mcp_pkg.__file__).parent.glob("*.py"))
 WRITE_STATEMENTS = [
     "INSERT INTO members (full_name, email, phone, status, joined_on) "
@@ -142,7 +143,12 @@ def test_queries_are_plain_literals() -> None:
         if isinstance(node, ast.Assign):
             assert isinstance(node.value, ast.Constant), ast.unparse(node)
             assert isinstance(node.value.value, str)
-            assert "?" in node.value.value
+            [target] = node.targets
+            assert isinstance(target, ast.Name)
+            # Every statement is parametrized, except the fixed range lookups, which take
+            # no input at all.
+            takes_input = target.id not in PARAMETERLESS_QUERIES
+            assert ("?" in node.value.value) is takes_input, target.id
 
 
 @pytest.mark.parametrize("path", SERVER_SOURCES, ids=lambda p: p.name)
