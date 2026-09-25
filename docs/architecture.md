@@ -10,7 +10,7 @@ flowchart LR
         SEED["gym_ops.db<br/>deterministic Faker seed<br/>SEED=42"]
         GEN["gym_ops.receipts<br/>generate · render · labels<br/>--seed 7"]
         EXT["gym_ops.extractor<br/>vision + forced tool use"]
-        EVAL["gym_ops.eval<br/>accuracy · cost · latency"]
+        EVAL["gym_ops.eval<br/>scores frozen runs: accuracy · e2e · cost · latency · gates"]
     end
 
     subgraph files["data/ (git-ignored)"]
@@ -18,7 +18,7 @@ flowchart LR
         LBL[/"labels.jsonl<br/>truth + expected"/]
     end
 
-    REP[/"reports/eval-*.json + .md"/]
+    REP[/"eval/reports/*.json + .md, eval/results.md"/]
 
     subgraph db["data/gym.db (SQLite)"]
         CORE[("members · memberships<br/>class_slots · checkins<br/>expected_payments")]
@@ -50,7 +50,7 @@ flowchart LR
     OR -->|"tool_use + usage"| EXT
     EXT -->|"validated + normalized<br/>UPSERT (rw)"| XP
     EXT -->|"one record per receipt"| XJ[/"extractions.jsonl"/]
-    EXT -->|"per-call usage, latency"| EVAL
+    EXT -->|"frozen runs: eval/runs/*"| EVAL
     LBL --> EVAL
     EVAL --> REP
 
@@ -203,7 +203,7 @@ Each index is justified by a `WHERE` / `JOIN` / `GROUP BY` in a specific tool (v
 | `gym_ops.receipts` | `generate`: pick real bills per FR-5 scenario (deterministic from `--seed`), assign templates and difficulty; `render`: draw PNGs for 3 fictional bank layouts (bundled DejaVu Sans, SHA-256-pinned; watermark; rotation/blur/JPEG noise); `labels`: `ReceiptLabel` with `truth` + reconciliation `expected`. Writes `data/receipts/*.png` and `data/labels.jsonl`. An oracle test replays `truth` through `reconcile.py` on a DB copy | ro |
 | `gym_ops.extractor` | `client`: Anthropic SDK → OpenRouter; `schema`: `ReceiptReading` (tool input, as printed) / `ExtractedPayment` (stored); `extract`: forced tool use, one validation retry; `normalize`: amounts, dates, banks, references; `resolve`: payer → member (ADR-0006); `store`: upsert + `extractions.jsonl`; `budget`: spend guards; `logs`: redacting JSON logs | rw (`extracted_payments` only) |
 | `gym_ops.mcp_server` | FastMCP stdio server, 4 tools, Pydantic I/O | **ro only** |
-| `gym_ops.eval` | Run extractor over labels, metrics, gates, reports | ro + extractor |
+| `gym_ops.eval` | Score frozen runs (`eval/runs/`) with no API calls: integrity check (hashes, regenerated labels), per-field accuracy with Wilson intervals, security, end-to-end reconciliation replay in a fresh temp DB, cost/latency, NFR gates; writes `eval/reports/` and `eval/results.md` | rw on temp DBs only (never `data/*.db`) |
 
 ## 4. Scale & reliability notes
 
