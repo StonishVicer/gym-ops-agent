@@ -3,7 +3,7 @@
 Claude reads bank-transfer receipts into validated records, and a read-only MCP server reconciles them against a gym's bills. The system is measured on a held-out set with a frozen, hash-verified eval.
 
 [![CI](https://github.com/StonishVicer/gym-ops-agent/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/StonishVicer/gym-ops-agent/actions/workflows/ci.yml)
-[![coverage 98% (v1.0.0)](https://img.shields.io/badge/coverage-98%25%20%28v1.0.0%29-brightgreen)](https://github.com/StonishVicer/gym-ops-agent/actions/workflows/ci.yml)
+[![coverage 98% (v1.0.0)](https://img.shields.io/badge/coverage-98%25%20%28v1.0.0%29-brightgreen)](https://github.com/StonishVicer/gym-ops-agent/actions/runs/36201557613)
 [![Python 3.12](https://img.shields.io/badge/python-3.12-blue)](.python-version)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
