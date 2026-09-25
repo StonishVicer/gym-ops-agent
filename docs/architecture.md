@@ -93,7 +93,7 @@ sequenceDiagram
 
 ## 2. Data model
 
-Conventions: money is `INTEGER` cents (`CHECK (typeof(col) = 'integer' AND col >= 0)`); dates are ISO-8601 `TEXT` (`YYYY-MM-DD`, `CHECK (date(col) = col)`); timestamps are ISO-8601 UTC `TEXT` (`YYYY-MM-DDTHH:MM:SSZ`); every FK is declared and `PRAGMA foreign_keys=ON` on read-write connections.
+Conventions: money is `INTEGER` cents (`CHECK (typeof(col) = 'integer' AND col > 0)` for bill and transfer amounts, `>= 0` for `price_cents`); dates are ISO-8601 `TEXT` (`YYYY-MM-DD`, `CHECK (date(col) IS col)` — `IS`, because a NULL CHECK passes); local datetimes are `TEXT` `YYYY-MM-DDTHH:MM:SS` and timestamps are ISO-8601 UTC `TEXT` (`YYYY-MM-DDTHH:MM:SSZ`), both checked with `strftime(fmt, col) IS col`; every FK is declared and `PRAGMA foreign_keys=ON` on read-write connections.
 
 ```mermaid
 erDiagram
@@ -139,7 +139,7 @@ erDiagram
         INTEGER membership_id FK "-> memberships"
         INTEGER member_id FK "-> members (denormalized for reconcile)"
         TEXT due_date "YYYY-MM-DD"
-        INTEGER amount_cents "CHECK >= 0"
+        INTEGER amount_cents "CHECK > 0"
         TEXT reference UK "e.g. GYM-000123-2026-09"
     }
     extracted_payments {
@@ -147,7 +147,7 @@ erDiagram
         TEXT receipt_id UK "filename stem"
         INTEGER member_id FK "nullable; resolved at extract time"
         TEXT payer_name
-        INTEGER amount_cents "CHECK >= 0"
+        INTEGER amount_cents "CHECK > 0"
         TEXT currency "ISO-4217, CHECK length = 3"
         TEXT transfer_date "YYYY-MM-DD"
         TEXT reference "nullable; untrusted text"
@@ -191,7 +191,7 @@ Each index is justified by a `WHERE` / `JOIN` / `GROUP BY` in a specific tool (v
 | Module | Responsibility | DB access |
 | --- | --- | --- |
 | `gym_ops.config` | `Settings` (pydantic-settings, `.env`), prices, seed | — |
-| `gym_ops.db` | DDL, connection factories (`connect_rw`, `connect_ro`), seeder | rw (seed) |
+| `gym_ops.db` | DDL, connection factories (`get_write_connection`, `get_readonly_connection`), seeder | rw (seed) |
 | `gym_ops.receipts` | Render PNG receipts from expected payments + injected noise/edge cases; write `labels.jsonl` | ro |
 | `gym_ops.extractor` | Anthropic client via OpenRouter, forced tool use, validation, upsert | rw (`extracted_payments` only) |
 | `gym_ops.mcp_server` | FastMCP stdio server, 4 tools, Pydantic I/O | **ro only** |

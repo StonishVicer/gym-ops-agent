@@ -22,10 +22,12 @@ Writers are exactly two offline processes: the seeder (`gym_ops.db`) and the ext
 
 **Option A.**
 
-- Schema conventions: money as `INTEGER` cents with `CHECK (amount_cents >= 0)`; dates as ISO-8601 `TEXT` with `CHECK (date(col) = col)` (datetimes: `CHECK (datetime(col) IS NOT NULL)`); explicit `FOREIGN KEY` clauses; `PRAGMA foreign_keys=ON` on every read-write connection; indexes on every column used in `WHERE` / `JOIN` / `GROUP BY` (SPEC FR-3).
-- The MCP server opens the DB exactly one way:
+- Schema conventions: money as `INTEGER` cents with `CHECK (typeof(amount_cents) = 'integer' AND amount_cents > 0)` (`price_cents >= 0`; see SPEC FR-2); dates as ISO-8601 `TEXT` with `CHECK (date(col) IS col)` (datetimes: `CHECK (strftime(fmt, col) IS col)`; `IS`, not `=`, because a CHECK that evaluates to NULL passes); explicit `FOREIGN KEY` clauses; `PRAGMA foreign_keys=ON` on every read-write connection; indexes on every column used in `WHERE` / `JOIN` / `GROUP BY` (SPEC FR-3).
+- The MCP server opens the DB exactly one way, via `gym_ops.db.connection.get_readonly_connection` (writers use `get_write_connection`):
   ```python
-  sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)  # path from Settings, not user input
+  # Path from Settings, not user input; as_uri() percent-encodes ? and #.
+  uri = f"{Path(db_path).resolve().as_uri()}?mode=ro"
+  conn = sqlite3.connect(uri, uri=True)
   conn.execute("PRAGMA query_only = ON")
   ```
 - Rollback-journal mode (default), not WAL, so a read-only connection needs no write access to `-wal`/`-shm` sidecar files (SPEC A-7).

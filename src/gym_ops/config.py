@@ -1,5 +1,6 @@
 """Application settings loaded from environment variables and `.env`."""
 
+from datetime import date
 from functools import lru_cache
 
 from pydantic import Field, SecretStr
@@ -14,6 +15,12 @@ class Settings(BaseSettings):
     OPENROUTER_API_KEY: SecretStr | None = None
     MODEL_ID: str = "anthropic/claude-haiku-4.5"
     DB_PATH: str = "data/gym.db"
+
+    # Deterministic seed (docs/SPEC.md FR-1, NFR-6). Synthetic data is generated
+    # relative to REFERENCE_DATE, never the wall clock, so re-runs are identical.
+    SEED: int = 42
+    SEED_MEMBERS: int = Field(default=300, ge=20)
+    REFERENCE_DATE: date = date(2026, 9, 25)
 
     # Pricing per 1M tokens for anthropic/claude-haiku-4.5.
     # Source: https://openrouter.ai/anthropic/claude-haiku-4.5 (retrieved 2026-09-25).

@@ -43,7 +43,9 @@ Each FR has an acceptance criterion (AC) that an automated test verifies. Test p
 - *AC:* Running seed twice into two files yields byte-identical table contents (same SHA-256 over `SELECT * ... ORDER BY pk` dumps for every table). Row counts match configured defaults: 300 members, ≥ 300 memberships, 12 weeks × 40 class slots = 480 slots, expected_payments = one per active membership per month in the seeded window.
 
 **FR-2 — Schema integrity.** The schema enforces money as INTEGER cents, dates as ISO-8601 TEXT, foreign keys, and `CHECK` constraints on enums.
-- *AC:* With `PRAGMA foreign_keys=ON`, inserting a checkin for a non-existent member raises `sqlite3.IntegrityError`; inserting `amount_cents = 12.5` or a negative amount raises `IntegrityError`; inserting a date not matching `YYYY-MM-DD` raises `IntegrityError` (via `CHECK (date(col) = col)`). `PRAGMA foreign_key_check` returns zero rows on the seeded DB.
+- *Amounts:* `amount_cents` on bills (`expected_payments`) and transfers (`extracted_payments`) must be `> 0`: a zero-value bill or transfer is meaningless and would only add noise to reconciliation. `memberships.price_cents` stays `>= 0` so a free plan (e.g. a comped membership) is representable.
+- *Dates:* the check is `CHECK (date(col) IS col)`, not `=`. `date()` returns NULL for malformed input such as `2026-9-10`, and SQLite treats a CHECK that evaluates to NULL as passing, so `=` would silently accept bad dates.
+- *AC:* With `PRAGMA foreign_keys=ON`, inserting a checkin for a non-existent member raises `sqlite3.IntegrityError`; inserting `amount_cents` of `12.5`, `0`, or a negative value into a bill or transfer raises `IntegrityError`; inserting a date not matching `YYYY-MM-DD` raises `IntegrityError` (via `CHECK (date(col) IS col)`). `PRAGMA foreign_key_check` returns zero rows on the seeded DB.
 
 **FR-3 — Indexes on query paths.** Every column used in a `WHERE`, `JOIN`, or `GROUP BY` by an MCP tool is covered by an index.
 - *AC:* For each MCP tool's SQL, `EXPLAIN QUERY PLAN` contains no `SCAN <table>` over `checkins`, `expected_payments`, or `extracted_payments` (only `SEARCH ... USING INDEX` / `COVERING INDEX`).
@@ -180,7 +182,7 @@ Resolved 2026-09-25:
 | Req | Module | Verifying test (planned) |
 | --- | --- | --- |
 | FR-1 | `gym_ops.db.seed` | `tests/db/test_seed.py::test_seed_is_deterministic`, `::test_row_counts` |
-| FR-2 | `gym_ops.db.schema` | `tests/db/test_schema.py::test_fk_enforced`, `::test_amount_cents_integer_nonnegative`, `::test_iso_date_check` |
+| FR-2 | `gym_ops.db.schema` | `tests/db/test_schema.py::test_fk_enforced_on_checkin`, `::test_bill_amount_must_be_positive_integer_cents`, `::test_extracted_payment_checks`, `::test_iso_date_check` |
 | FR-3 | `gym_ops.db.schema`, `gym_ops.mcp_server.queries` | `tests/mcp_server/test_query_plans.py::test_no_full_scans` |
 | FR-4 | `gym_ops.receipts.generate`, `gym_ops.receipts.labels` | `tests/receipts/test_generate.py::test_files_match_labels`, `::test_labels_include_payer_name`, `::test_deterministic_output` |
 | FR-5 | `gym_ops.receipts.generate` | `tests/receipts/test_generate.py::test_difficulty_mix`, `::test_every_reconciliation_scenario_present` |
