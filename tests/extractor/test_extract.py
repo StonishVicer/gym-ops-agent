@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 from gym_ops.extractor.extract import MAX_TOKENS, cost_usd_micros, extract_receipt
-from gym_ops.extractor.prompt import SYSTEM_PROMPT
+from gym_ops.extractor.prompt import PROMPT_VERSION, SYSTEM_PROMPT
 from gym_ops.extractor.schema import TOOL_NAME
 from gym_ops.receipts.generate import INJECTION_TEXT
 from tests.extractor.conftest import GOOD_INPUT, MODEL_REPORTED, Harness, MakeReceipt, message_json
@@ -77,6 +77,7 @@ def test_returns_validated_model(harness: Harness, make_receipt: MakeReceipt) ->
     assert result.model_id == MODEL_REPORTED
     assert result.attempts == result.http_attempts == 1
     assert result.latency_ms >= 0
+    assert result.prompt_version == PROMPT_VERSION == "v2"
 
 
 def test_cost_micros_uses_settings_prices(harness: Harness) -> None:

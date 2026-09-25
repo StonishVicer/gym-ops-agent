@@ -23,7 +23,7 @@ from pydantic import ValidationError
 from gym_ops.config import Settings
 from gym_ops.extractor.client import RequestCounter
 from gym_ops.extractor.normalize import NormalizationError, normalize_reading
-from gym_ops.extractor.prompt import SYSTEM_PROMPT, USER_INSTRUCTION
+from gym_ops.extractor.prompt import PROMPT_VERSION, SYSTEM_PROMPT, USER_INSTRUCTION
 from gym_ops.extractor.schema import (
     TOOL_NAME,
     ExtractionResult,
@@ -179,8 +179,9 @@ def extract_receipt(
 ) -> ExtractionResult:
     """Extract one receipt. Never raises for API or model errors: they land in `error`."""
     path = Path(image_path)
-    result = ExtractionResult(receipt_id=path.stem)
+    result = ExtractionResult(receipt_id=path.stem, prompt_version=PROMPT_VERSION)
     http_before = counter.count if counter else 0
+    statuses_before = len(counter.statuses) if counter else 0
     try:
         _run(client, path, settings, result)
     except anthropic.APIStatusError as exc:
@@ -189,4 +190,16 @@ def extract_receipt(
         result.error = type(exc).__name__
     finally:
         result.http_attempts = (counter.count - http_before) if counter else result.attempts
+        result.http_statuses = counter.statuses[statuses_before:] if counter else []
+        if result.http_attempts > result.attempts:
+            logger.warning(
+                "SDK retried HTTP attempts",
+                extra={
+                    "event": "http_retry",
+                    "receipt_id": result.receipt_id,
+                    "http_statuses": result.http_statuses,
+                    "http_attempts": result.http_attempts,
+                    "connection_failures": result.http_attempts - len(result.http_statuses),
+                },
+            )
     return result

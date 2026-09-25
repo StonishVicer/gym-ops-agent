@@ -32,12 +32,21 @@ TIMEOUT_S: Final = 30.0
 
 @dataclass
 class RequestCounter:
-    """httpx event hook counting HTTP requests, so SDK retries are visible per receipt."""
+    """httpx event hooks that make SDK retries visible per receipt.
 
-    count: int = field(default=0)
+    Counts every request and records every response's status code, in order, so a
+    retried call reads e.g. `[429, 200]`. A connection error produces no response:
+    requests minus statuses = attempts that failed before any HTTP status.
+    """
+
+    count: int = 0
+    statuses: list[int] = field(default_factory=list)
 
     def __call__(self, request: httpx2.Request) -> None:
         self.count += 1
+
+    def on_response(self, response: httpx2.Response) -> None:
+        self.statuses.append(response.status_code)
 
 
 def build_client(
@@ -47,7 +56,9 @@ def build_client(
     transport: httpx2.BaseTransport | None = None,
 ) -> anthropic.Anthropic:
     """Build the extractor's client. `transport` is for tests (httpx2.MockTransport)."""
-    hooks: dict[str, list[Callable[..., Any]]] = {"request": [counter]} if counter else {}
+    hooks: dict[str, list[Callable[..., Any]]] = (
+        {"request": [counter], "response": [counter.on_response]} if counter else {}
+    )
     http_client = anthropic.DefaultHttpxClient(transport=transport, event_hooks=hooks)
     # `auth_token`, not `api_key`: in anthropic 1.8.0 `api_key` is sent as `x-api-key`
     # and `auth_token` as `Authorization: Bearer <token>`. OpenRouter authenticates

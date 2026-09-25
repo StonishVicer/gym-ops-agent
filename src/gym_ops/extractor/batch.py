@@ -145,6 +145,8 @@ def run_batch(
                     "latency_ms": result.latency_ms,
                     "attempts": result.attempts,
                     "http_attempts": result.http_attempts,
+                    "http_statuses": result.http_statuses,
+                    "prompt_version": result.prompt_version,
                     "running_total_usd": round(running.total_usd + result.cost_usd, 6),
                     "progress": f"{summary.processed}/{summary.selected}",
                 },

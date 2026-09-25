@@ -55,6 +55,7 @@ def test_sdk_retries_429_and_5xx_then_succeeds(harness: Harness, make_receipt: M
     assert result.ok and result.error is None
     assert result.attempts == 1  # one model call...
     assert result.http_attempts == 3  # ...that took three HTTP requests
+    assert result.http_statuses == [529, 429, 200]
 
 
 def test_sdk_gives_up_after_three_attempts(harness: Harness, make_receipt: MakeReceipt) -> None:
@@ -66,6 +67,7 @@ def test_sdk_gives_up_after_three_attempts(harness: Harness, make_receipt: MakeR
     )
 
     assert result.error == "InternalServerError: HTTP 500"
+    assert result.http_statuses == [500, 500, 500]
     assert result.payment is None
     assert result.http_attempts == 3
     assert result.input_tokens == result.output_tokens == 0
@@ -82,6 +84,7 @@ def test_connection_errors_are_retried_then_reported(
 
     assert result.error == "APIConnectionError"
     assert result.http_attempts == 3
+    assert result.http_statuses == []  # no HTTP status: all three failed to connect
 
 
 def test_non_retryable_status_is_not_retried(harness: Harness, make_receipt: MakeReceipt) -> None:
@@ -99,3 +102,28 @@ def test_request_counter_counts() -> None:
     counter = RequestCounter()
     counter(httpx2.Request("GET", "https://example.invalid"))
     assert counter.count == 1
+
+
+def test_http_retry_is_logged_with_statuses(
+    harness: Harness, make_receipt: MakeReceipt, caplog: pytest.LogCaptureFixture
+) -> None:
+    harness.api.queue_status(503, {"retry-after-ms": "1"})
+    harness.api.queue(message_json(GOOD_INPUT))
+
+    extract_receipt(harness.client, make_receipt("rcpt-0071"), harness.settings, harness.counter)
+
+    [record] = [r for r in caplog.records if r.__dict__.get("event") == "http_retry"]
+    assert record.__dict__["receipt_id"] == "rcpt-0071"
+    assert record.__dict__["http_statuses"] == [503, 200]
+    assert record.__dict__["connection_failures"] == 0
+
+
+def test_no_retry_log_on_first_try_success(
+    harness: Harness, make_receipt: MakeReceipt, caplog: pytest.LogCaptureFixture
+) -> None:
+    harness.api.queue(message_json(GOOD_INPUT))
+    result = extract_receipt(
+        harness.client, make_receipt("rcpt-0001"), harness.settings, harness.counter
+    )
+    assert result.http_statuses == [200]
+    assert not [r for r in caplog.records if r.__dict__.get("event") == "http_retry"]

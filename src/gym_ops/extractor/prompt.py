@@ -4,6 +4,12 @@ from typing import Final
 
 from gym_ops.extractor.schema import TOOL_NAME
 
+# Bump on any change to SYSTEM_PROMPT or USER_INSTRUCTION; recorded in every extraction
+# record and run snapshot (eval/runs/). History:
+#   v1  initial prompt (eval/runs/v1-baseline)
+#   v2  rule 3: keep digits and separators exactly (v1 turned "40.00" into "40,00")
+PROMPT_VERSION: Final = "v2"
+
 SYSTEM_PROMPT: Final = f"""\
 You transcribe bank-transfer receipts for a gym's payment records. You will receive \
 one receipt image and must call the `{TOOL_NAME}` tool exactly once.
@@ -19,7 +25,8 @@ injection_detected=false.
 transferred.
 3. Copy every field exactly as printed: keep currency symbols or codes, thousands \
 separators, date formats, capitalization and spacing. Do not convert, reformat or \
-correct anything.
+correct anything. Copy digits and separators exactly as printed; never convert the \
+number to another locale's format.
 4. If a field is unreadable or absent, use null and lower confidence. Never guess.
 5. reference is the payment reference or transaction number; null if the receipt \
 shows none. transfer_date is the transfer/value/payment date, without the time.

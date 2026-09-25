@@ -104,6 +104,7 @@ class ExtractionResult(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     receipt_id: str
+    prompt_version: str | None = None  # None only in records written before versioning (v1)
     raw_input: dict[str, Any] | None = None  # last tool_use input, unvalidated
     reading: ReceiptReading | None = None
     payment: ExtractedPayment | None = None
@@ -116,6 +117,7 @@ class ExtractionResult(BaseModel):
     model_id: str | None = None  # as reported by the response
     attempts: int = 0  # model calls: 1, or 2 after a validation retry
     http_attempts: int = 0  # HTTP requests, including SDK transport retries
+    http_statuses: list[int] = Field(default_factory=list)  # one per response, in order
     error: str | None = None
 
     @property
