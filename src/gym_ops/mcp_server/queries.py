@@ -117,3 +117,19 @@ LEFT JOIN expected_payments AS ep ON ep.reference = x.reference
 ORDER BY x.extracted_payment_id
 LIMIT ?
 """
+
+# Empty-result hints ------------------------------------------------------------------
+# The span of dates that hold data, returned when a date-filtered tool finds nothing.
+# Two scalar subqueries, not `SELECT MIN(x), MAX(x)`: SQLite's min/max optimisation
+# only applies to a lone MIN or MAX, so each subquery is one index seek instead of a
+# scan of the whole index. They take no parameters and always return one row.
+
+SLOT_DATE_RANGE = """
+SELECT (SELECT MIN(starts_at) FROM class_slots),
+       (SELECT MAX(starts_at) FROM class_slots)
+"""
+
+BILL_DUE_DATE_RANGE = """
+SELECT (SELECT MIN(due_date) FROM expected_payments),
+       (SELECT MAX(due_date) FROM expected_payments)
+"""

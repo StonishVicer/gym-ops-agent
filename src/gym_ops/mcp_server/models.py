@@ -9,15 +9,17 @@ reads them to correct its next call.
 
 import re
 from datetime import date, datetime
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal
 
 from pydantic import (
     BaseModel,
     BeforeValidator,
     ConfigDict,
     Field,
+    SerializerFunctionWrapHandler,
     StringConstraints,
     ValidationError,
+    model_serializer,
     model_validator,
 )
 
@@ -173,6 +175,32 @@ class _Output(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
 
+class DateRange(_Output):
+    """Inclusive span of dates for which the database holds data."""
+
+    model_config = ConfigDict(validate_by_name=True, serialize_by_alias=True)
+
+    from_: date = Field(alias="from", description="Earliest date with data, YYYY-MM-DD.")
+    to: date = Field(description="Latest date with data, YYYY-MM-DD.")
+
+
+class _HintedOutput(_Output):
+    """A result that carries `available_range` only when it found nothing.
+
+    The key is dropped from the serialized output when unset, so responses that
+    have data are byte-identical to what they were before the hint existed.
+    """
+
+    available_range: DateRange | None = None
+
+    @model_serializer(mode="wrap")
+    def _omit_unset_hint(self, handler: SerializerFunctionWrapHandler) -> dict[str, Any]:
+        data: dict[str, Any] = handler(self)
+        if data.get("available_range") is None:
+            data.pop("available_range", None)
+        return data
+
+
 # --- get_class_occupancy ---------------------------------------------------------
 
 
@@ -204,7 +232,7 @@ class WeekdayHourAggregate(_Output):
     occupancy_pct: float
 
 
-class ClassOccupancyResult(_Output):
+class ClassOccupancyResult(_HintedOutput):
     start_date: date
     end_date: date
     class_name: ClassName | None
@@ -218,6 +246,13 @@ class ClassOccupancyResult(_Output):
     )
     slots: list[SlotOccupancy] = Field(description="Chronological; capped at 200.")
     truncated: bool = Field(description="True if `slots` was cut at 200 rows.")
+    available_range: DateRange | None = Field(
+        default=None,
+        description=(
+            "Present only when no class slots fall in the requested range: the first "
+            "and last dates that have class slots. Retry with dates inside it."
+        ),
+    )
 
 
 # --- find_members ----------------------------------------------------------------
@@ -294,7 +329,7 @@ class ReconciliationTotals(_Output):
     unidentified_amount: str
 
 
-class ReconcileResult(_Output):
+class ReconcileResult(_HintedOutput):
     period_start: date
     period_end: date
     match_window_days: int
@@ -304,11 +339,25 @@ class ReconcileResult(_Output):
     )
     unidentified: list[UnidentifiedTransfer]
     truncated: bool = Field(description="True if `bills` or `unidentified` was cut at 200 rows.")
+    available_range: DateRange | None = Field(
+        default=None,
+        description=(
+            "Present only when the period has no bills and no unidentified transfers: "
+            "the first and last bill due dates in the database. Retry inside it."
+        ),
+    )
 
 
-class UnpaidMembersResult(_Output):
+class UnpaidMembersResult(_HintedOutput):
     month: str
     bills: list[BillReconciliation] = Field(description="Unpaid and partially paid bills only.")
     total_outstanding_cents: int = Field(description="Over all matching bills, not truncated.")
     total_outstanding: str
     truncated: bool = Field(description="True if `bills` was cut at 200 rows.")
+    available_range: DateRange | None = Field(
+        default=None,
+        description=(
+            "Present only when no bills at all were due in the month (not when every "
+            "bill was paid): the first and last bill due dates in the database."
+        ),
+    )
