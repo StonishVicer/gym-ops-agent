@@ -52,7 +52,12 @@ files = ["src", "tests"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-ra --strict-markers"
+markers = [
+    "perf: wall-clock latency checks (NFR-8); run by `make test`, skipped by `make test-ci`",
+]
 
 [tool.coverage.run]
 source = ["gym_ops"]
 branch = true
+# NFR-9 excludes the `python -m` shims; they only call main().
+omit = ["*/__main__.py"]

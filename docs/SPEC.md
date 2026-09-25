@@ -143,7 +143,7 @@ Each FR has an acceptance criterion (AC) that an automated test verifies. Test p
 | **NFR-5** | Zero secrets in repo | 0 findings | `gitleaks`/`detect-secrets` pre-commit hook + CI; `.env` and `*.db` in `.gitignore`; test asserts `Settings.OPENROUTER_API_KEY` is `SecretStr` and never appears in `repr(settings)`. |
 | **NFR-6** | Full reproducibility | `make all` succeeds from a clean clone with only `OPENROUTER_API_KEY` set | Fixed seeds (`SEED=42` for Faker, `random.Random`, image noise); FR-1 and FR-4 byte-identity tests. LLM outputs are not bit-reproducible (see A-4); the eval is reproducible in *procedure* and gated by thresholds. |
 | **NFR-7** | Type & SQL safety | 0 mypy errors (strict); 0 non-parametrized SQL | `make lint`; ruff `S608` (SQL string building) enabled; static test greps for f-string/`%`/`.format(` near `execute(`. |
-| **NFR-8** | MCP tool latency | p95 < 100 ms per tool call on the seeded DB | pytest benchmark-style test calling each tool 50× in-process. |
+| **NFR-8** | MCP tool latency | p95 < 100 ms per tool call on the seeded DB | `tests/mcp_server/test_perf.py` calls each tool 20× in-process (after one warm-up) over the whole seeded window; nearest-rank p95. Marked `perf`: runs in `make test`, excluded from CI (`make test-ci`, `-m "not perf"`) because wall-clock timing on a shared runner is noisy. |
 | **NFR-9** | Test coverage | ≥ 85% line+branch on `gym_ops` (excluding `__main__` shims) | `pytest --cov --cov-fail-under=85`. |
 
 ## 5. Non-goals
@@ -179,31 +179,33 @@ Resolved 2026-09-25:
 
 ## 8. Traceability
 
-| Req | Module | Verifying test (planned) |
-| --- | --- | --- |
-| FR-1 | `gym_ops.db.seed` | `tests/db/test_seed.py::test_seed_is_deterministic`, `::test_row_counts` |
-| FR-2 | `gym_ops.db.schema` | `tests/db/test_schema.py::test_fk_enforced_on_checkin`, `::test_bill_amount_must_be_positive_integer_cents`, `::test_extracted_payment_checks`, `::test_iso_date_check` |
-| FR-3 | `gym_ops.db.schema`, `gym_ops.mcp_server.queries` | `tests/mcp_server/test_query_plans.py::test_no_full_scans` |
-| FR-4 | `gym_ops.receipts.generate`, `gym_ops.receipts.labels` | `tests/receipts/test_generate.py::test_files_match_labels`, `::test_labels_include_payer_name`, `::test_deterministic_output` |
-| FR-5 | `gym_ops.receipts.generate` | `tests/receipts/test_generate.py::test_difficulty_mix`, `::test_every_reconciliation_scenario_present` |
-| FR-6 | `gym_ops.extractor.client`, `gym_ops.extractor.schema` | `tests/extractor/test_extract.py::test_forced_tool_choice`, `::test_returns_validated_model` |
-| FR-7 | `gym_ops.extractor.extract` | `tests/extractor/test_extract.py::test_invalid_tool_input_not_stored` |
-| FR-8 | `gym_ops.extractor.store` | `tests/extractor/test_store.py::test_cost_micros`, `::test_upsert_by_receipt_id` |
-| FR-9 | `gym_ops.extractor`, `gym_ops.receipts` | `tests/extractor/test_injection.py::test_injection_text_is_inert`; live: eval report injection-case row |
-| FR-10 | `gym_ops.mcp_server.server` | `tests/mcp_server/test_tools.py::test_exactly_four_tools`, `::test_no_sql_parameters` |
-| FR-11 | `gym_ops.mcp_server.tools.occupancy` | `tests/mcp_server/test_occupancy.py` |
-| FR-12 | `gym_ops.mcp_server.tools.members` | `tests/mcp_server/test_members.py::test_like_wildcards_escaped`, `::test_limit_bounds` |
-| FR-13 | `gym_ops.mcp_server.tools.payments` | `tests/mcp_server/test_unpaid.py::test_outstanding_after_topup` |
-| FR-14 (ADR-0005) | `gym_ops.mcp_server.tools.payments` (`reconcile.py`), `gym_ops.config` (`MATCH_WINDOW_DAYS`) | `tests/mcp_server/test_reconcile.py::test_exact_payment_paid`, `::test_partial_payment_outstanding`, `::test_topup_with_reference`, `::test_topup_without_reference`, `::test_topup_outside_window_no_open_bill`, `::test_ambiguous_unidentified`, `::test_duplicate_overpaid`, `::test_late_payment_with_reference`, `::test_unknown_payer`, `::test_bill_lists_counted_transfers`, `::test_invariants`, `::test_order_independent` |
-| FR-15 | `gym_ops.mcp_server.models` | `tests/mcp_server/test_tools.py::test_truncation_flag` |
-| FR-16 | `gym_ops.eval.run`, `gym_ops.eval.metrics` | `tests/eval/test_metrics.py::test_field_normalization`, `::test_percentiles`, `::test_report_shape` |
-| FR-17 | `gym_ops.eval.gates` | `tests/eval/test_gates.py` |
-| NFR-1 | `gym_ops.eval.metrics`, `gym_ops.config` | `tests/eval/test_gates.py::test_cost_gate`; live: `make eval` |
-| NFR-2 | `gym_ops.eval.metrics` | `tests/eval/test_gates.py::test_latency_gate`; live: `make eval` |
-| NFR-3 | `gym_ops.eval.metrics` | `tests/eval/test_gates.py::test_accuracy_gate`; live: `make eval` |
-| NFR-4 | `gym_ops.mcp_server.db` | `tests/mcp_server/test_readonly.py::test_writes_raise`, `::test_no_write_sql_literals` |
-| NFR-5 | repo config, `gym_ops.config` | pre-commit secret scan; `tests/test_config.py::test_api_key_is_secret` |
-| NFR-6 | `Makefile`, seeds in `gym_ops.config` | FR-1/FR-4 determinism tests; CI job running `make all` |
-| NFR-7 | all | `make lint`; `tests/test_sql_hygiene.py` |
-| NFR-8 | `gym_ops.mcp_server.tools.*` | `tests/mcp_server/test_perf.py` |
-| NFR-9 | all | `make test` (`--cov-fail-under=85`) |
+Status: **verified** = the listed tests exist and pass; **not built** = the module is a later phase and its tests do not exist yet (the names are the planned ones).
+
+| Req | Module | Verifying test | Status |
+| --- | --- | --- | --- |
+| FR-1 | `gym_ops.db.seed` | `tests/db/test_seed.py::test_seed_is_deterministic`, `::test_row_counts` | verified |
+| FR-2 | `gym_ops.db.schema` | `tests/db/test_schema.py::test_fk_enforced_on_checkin`, `::test_bill_amount_must_be_positive_integer_cents`, `::test_extracted_payment_checks`, `::test_iso_date_check` | verified |
+| FR-3 | `gym_ops.db.schema`, `gym_ops.mcp_server.queries` | `tests/mcp_server/test_query_plans.py::test_no_full_scans`, `::test_expected_indexes_used`, `::test_every_query_is_checked` | verified |
+| FR-4 | `gym_ops.receipts.generate`, `gym_ops.receipts.labels` | `tests/receipts/test_generate.py::test_files_match_labels`, `::test_labels_include_payer_name`, `::test_deterministic_output` | not built |
+| FR-5 | `gym_ops.receipts.generate` | `tests/receipts/test_generate.py::test_difficulty_mix`, `::test_every_reconciliation_scenario_present` | not built |
+| FR-6 | `gym_ops.extractor.client`, `gym_ops.extractor.schema` | `tests/extractor/test_extract.py::test_forced_tool_choice`, `::test_returns_validated_model` | not built |
+| FR-7 | `gym_ops.extractor.extract` | `tests/extractor/test_extract.py::test_invalid_tool_input_not_stored` | not built |
+| FR-8 | `gym_ops.extractor.store` | `tests/extractor/test_store.py::test_cost_micros`, `::test_upsert_by_receipt_id` | not built |
+| FR-9 | `gym_ops.extractor`, `gym_ops.receipts` | `tests/extractor/test_injection.py::test_injection_text_is_inert`; live: eval report injection-case row | not built |
+| FR-10 | `gym_ops.mcp_server.server` | `tests/mcp_server/test_tools.py::test_exactly_four_tools`, `::test_no_sql_parameters` | verified |
+| FR-11 | `gym_ops.mcp_server.server` (`get_class_occupancy`) | `tests/mcp_server/test_occupancy.py::test_slot_occupancy_pct`, `::test_end_before_start_rejected`, `::test_max_range_boundary` | verified |
+| FR-12 | `gym_ops.mcp_server.server` (`find_members`) | `tests/mcp_server/test_members.py::test_substring_case_insensitive`, `::test_like_wildcards_escaped`, `::test_limit_bounds` | verified |
+| FR-13 | `gym_ops.mcp_server.server` (`list_unpaid_members`), `gym_ops.mcp_server.reconcile` | `tests/mcp_server/test_unpaid.py::test_outstanding_after_topup` | verified |
+| FR-14 (ADR-0005) | `gym_ops.mcp_server.reconcile`, `gym_ops.config` (`MATCH_WINDOW_DAYS`) | `tests/mcp_server/test_reconcile.py::test_exact_payment_paid`, `::test_partial_payment_outstanding`, `::test_topup_with_reference`, `::test_topup_without_reference`, `::test_topup_outside_window_no_open_bill`, `::test_ambiguous_unidentified`, `::test_duplicate_overpaid`, `::test_late_payment_with_reference`, `::test_unknown_payer`, `::test_bill_lists_counted_transfers`, `::test_invariants`, `::test_order_independent` | verified |
+| FR-15 | `gym_ops.mcp_server.models` | `tests/mcp_server/test_unpaid.py::test_truncation_flag`, `tests/mcp_server/test_tools.py::test_structured_output_validates` | verified |
+| FR-16 | `gym_ops.eval.run`, `gym_ops.eval.metrics` | `tests/eval/test_metrics.py::test_field_normalization`, `::test_percentiles`, `::test_report_shape` | not built |
+| FR-17 | `gym_ops.eval.gates` | `tests/eval/test_gates.py` | not built |
+| NFR-1 | `gym_ops.eval.metrics`, `gym_ops.config` | `tests/eval/test_gates.py::test_cost_gate`; live: `make eval` | not built |
+| NFR-2 | `gym_ops.eval.metrics` | `tests/eval/test_gates.py::test_latency_gate`; live: `make eval` | not built |
+| NFR-3 | `gym_ops.eval.metrics` | `tests/eval/test_gates.py::test_accuracy_gate`; live: `make eval` | not built |
+| NFR-4 | `gym_ops.db.connection`, `gym_ops.mcp_server.server` (`_open_db`) | `tests/db/test_connection.py::test_readonly_connection_rejects_writes`, `tests/mcp_server/test_readonly.py::test_writes_raise`, `::test_no_write_sql_literals`, `::test_only_readonly_connection_factory` | verified |
+| NFR-5 | repo config, `gym_ops.config` | `tests/test_config.py::test_api_key_is_secret`; gitleaks pre-commit hook (`.pre-commit-config.yaml`) | verified |
+| NFR-6 | `Makefile`, seeds in `gym_ops.config` | `tests/db/test_seed.py::test_seed_is_deterministic` (FR-1); FR-4 byte-identity and a CI job running `make all` come with the receipts phase | verified (DB); not built (receipts, CI) |
+| NFR-7 | all | `tests/test_sql_hygiene.py::test_execute_never_receives_built_sql`, `::test_ruff_sql_injection_rule_enabled`, `tests/mcp_server/test_readonly.py::test_sql_is_never_built_dynamically`; `make lint` (ruff `S608`, mypy strict) | verified |
+| NFR-8 | `gym_ops.mcp_server.server` | `tests/mcp_server/test_perf.py::test_tool_p95_latency` — marked `perf`: runs in `make test`, **excluded from CI** (`make test-ci` = `-m "not perf"`) | verified (local only) |
+| NFR-9 | all | `make test` / `make test-ci` (`--cov-fail-under=85`; `__main__` shims omitted in `pyproject.toml`) | verified |
