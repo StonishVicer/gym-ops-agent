@@ -20,10 +20,12 @@ Settings live in `gym_ops.config.Settings` (pydantic-settings, reads `.env`).
 | `make seed` | Build `data/gym.db` from the deterministic seed |
 | `make receipts` | Generate synthetic receipt images + labels |
 | `make mcp` | Run the MCP server on stdio |
-| `make extract` | Run the receipt extractor |
+| `make extract` | Run the receipt extractor on all 100 receipts (spends money; needs explicit approval) |
+| `make extract-smoke` | Extract 3 receipts (clean, rotated+blurred, adversarial), ~$0.01 |
 | `make eval` | Run the eval harness |
-| `make test` | pytest with coverage |
-| `make test-ci` | pytest with coverage, excluding `perf` tests (what CI runs) |
+| `make test` | pytest with coverage, excluding `live` tests |
+| `make test-ci` | pytest with coverage, excluding `perf` and `live` tests (what CI runs) |
+| `make test-live` | Only `live` tests: real API calls through OpenRouter (spends money) |
 | `make lint` | ruff check, ruff format --check, mypy (strict) |
 | `make all` | lint, test, seed, receipts, eval |
 
