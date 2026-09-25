@@ -1,4 +1,4 @@
-.PHONY: setup seed receipts holdout mcp extract extract-smoke extract-holdout eval test test-ci test-live lint all
+.PHONY: setup seed receipts docs-img holdout mcp extract extract-smoke extract-holdout eval test test-ci test-live lint all
 
 UV_RUN := uv run
 
@@ -11,6 +11,12 @@ seed:
 
 receipts:
 	$(UV_RUN) python -m gym_ops.receipts.generate --n-max 100 --seed 7
+
+# The two README sample receipts (clean rcpt-0008, adversarial rcpt-0033), copied from the
+# deterministic dev set, so docs/img/ is rebuilt byte for byte from seed 7. Costs nothing.
+docs-img: receipts
+	cp data/receipts/rcpt-0008.png docs/img/receipt-clean.png
+	cp data/receipts/rcpt-0033.png docs/img/receipt-adversarial.png
 
 # Held-out test set (SPEC "Evaluation protocol"): a fresh DB from the same seed (no dev
 # transfers), 100 receipts from seed 8 with `hold-` ids. Costs nothing.
@@ -70,4 +76,5 @@ lint:
 	$(UV_RUN) ruff format --check .
 	$(UV_RUN) mypy
 
-all: lint test seed receipts eval
+# The offline pipeline: $0, no API key, never calls the model (tests/test_repo_hygiene.py).
+all: setup seed receipts lint test-ci eval

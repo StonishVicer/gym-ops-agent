@@ -19,6 +19,7 @@ Settings live in `gym_ops.config.Settings` (pydantic-settings, reads `.env`).
 | `make setup` | Install deps (`uv sync`) and pre-commit hooks |
 | `make seed` | Build `data/gym.db` from the deterministic seed |
 | `make receipts` | Generate synthetic receipt images + labels |
+| `make docs-img` | Copy the two README sample receipts into `docs/img/` (deterministic, $0) |
 | `make mcp` | Run the MCP server on stdio |
 | `make extract` | Run the receipt extractor on all 100 receipts (spends money; needs explicit approval) |
 | `make holdout` | Build the held-out set: fresh `data/holdout/gym.db` + 100 `hold-` receipts (seed 8), $0 |
@@ -29,7 +30,7 @@ Settings live in `gym_ops.config.Settings` (pydantic-settings, reads `.env`).
 | `make test-ci` | pytest with coverage, excluding `perf` and `live` tests (what CI runs) |
 | `make test-live` | Only `live` tests: real API calls through OpenRouter (spends money) |
 | `make lint` | ruff check, ruff format --check, mypy (strict) |
-| `make all` | lint, test, seed, receipts, eval |
+| `make all` | Offline $0 pipeline: setup, seed, receipts, lint, test-ci, eval (never calls the API) |
 
 ## Conventions
 
@@ -46,4 +47,4 @@ Settings live in `gym_ops.config.Settings` (pydantic-settings, reads `.env`).
 - Never commit secrets, API keys, or generated `.db` files.
 - Never change reconciliation rules (`reconcile.py`, ADR-0005) to make the receipts oracle test pass; a mismatch means the dataset or the rules are wrong, so stop and report it.
 - Never replace files in `assets/fonts/` without updating the SHA-256 pins in `tests/receipts/test_assets.py`; a font change changes every receipt image.
-- Never set `ANTHROPIC_BASE_URL` or `ANTHROPIC_AUTH_TOKEN` env vars — they hijack Claude Code's own auth. Pass `base_url` and `api_key` to the `anthropic.Anthropic(...)` client explicitly instead.
+- Never set `ANTHROPIC_BASE_URL` or `ANTHROPIC_AUTH_TOKEN` env vars — they hijack Claude Code's own auth. Pass `base_url` and the credential (`auth_token`, ADR-0001) to the `anthropic.Anthropic(...)` client explicitly instead.
