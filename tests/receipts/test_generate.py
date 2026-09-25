@@ -201,12 +201,20 @@ def test_date_formats(tags: tuple[DifficultyTag, ...], text: str) -> None:
     assert format_date(date(2026, 9, 9), tags) == text
 
 
+def test_font_is_the_bundled_file() -> None:
+    for bold, name in ((False, render.FONT_REGULAR), (True, render.FONT_BOLD)):
+        font = render.load_font(20, bold=bold)
+        assert isinstance(font, ImageFont.FreeTypeFont)
+        assert font.path == str(render.FONT_DIR / name)
+
+
 def test_font_falls_back_to_pillow_default(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(render, "FONT_DIR", tmp_path)
     render.load_font.cache_clear()
     try:
         font = render.load_font(20)
-        assert isinstance(font, ImageFont.FreeTypeFont | ImageFont.ImageFont)
+        # Never a system-installed copy found by filename (e.g. /usr/share/fonts on Linux).
         assert "DejaVu" not in str(getattr(font, "path", ""))
+        assert font.getbbox("A") is not None
     finally:
         render.load_font.cache_clear()

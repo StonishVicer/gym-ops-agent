@@ -130,11 +130,16 @@ def format_date(day: date, difficulty: Sequence[DifficultyTag]) -> str:
 
 @lru_cache
 def load_font(size: int, bold: bool = False) -> Font:
-    """Bundled DejaVu Sans; Pillow's built-in scalable font if the file is missing."""
-    try:
-        return ImageFont.truetype(str(FONT_DIR / (FONT_BOLD if bold else FONT_REGULAR)), size)
-    except OSError:
-        return ImageFont.load_default(size=size)
+    """Bundled DejaVu Sans; Pillow's built-in scalable font if the file is missing.
+
+    The existence check matters: given a missing path, `truetype()` silently searches
+    the system font directories for the same filename, so output would depend on the
+    host's installed fonts instead of falling back deterministically.
+    """
+    path = FONT_DIR / (FONT_BOLD if bold else FONT_REGULAR)
+    if path.is_file():
+        return ImageFont.truetype(str(path), size)
+    return ImageFont.load_default(size=size)
 
 
 def _text_width(draw: ImageDraw.ImageDraw, text: str, font: Font) -> float:
