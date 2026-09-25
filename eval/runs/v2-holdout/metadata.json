@@ -1,0 +1,19 @@
+{
+  "name": "v2-holdout",
+  "split": "holdout",
+  "prompt_version": "v2",
+  "prompt_sha256": "29adde3befc304982e5f8bb0c3b19c209ae3a192ac426aefdd7c2c9290d18178",
+  "tool_schema_sha256": "fc65bc0f1d2cba2873fb855b11dfe28096c31b70db4b1d46de02f1b7aefea2f1",
+  "model_id": "anthropic/claude-haiku-4.5",
+  "git_sha": "3a5b144860c90ab6763e7a1f9b5b82329c788456",
+  "run_started_at": "2026-09-25T22:23:49Z",
+  "run_finished_at": "2026-09-25T22:29:22Z",
+  "receipts": 100,
+  "receipts_seed": 8,
+  "db_seed": 42,
+  "db_members": 300,
+  "reference_date": "2026-09-25",
+  "labels_sha256": "2801569e85e02697954b18ec43fcd9e4139f31c1f99bae9fd5400f7b9fb77c74",
+  "extractions_sha256": "95a5176beefd32e9ec36e8c12afbf8e2e1965c86371b0b093f44e5a659e23c4f",
+  "total_cost_usd": 0.34749
+}

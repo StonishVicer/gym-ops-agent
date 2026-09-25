@@ -1,0 +1,19 @@
+{
+  "name": "v2-dev",
+  "split": "dev",
+  "prompt_version": "v2",
+  "prompt_sha256": "29adde3befc304982e5f8bb0c3b19c209ae3a192ac426aefdd7c2c9290d18178",
+  "tool_schema_sha256": "fc65bc0f1d2cba2873fb855b11dfe28096c31b70db4b1d46de02f1b7aefea2f1",
+  "model_id": "anthropic/claude-haiku-4.5",
+  "git_sha": "650fb4060b37ea1e36edf8cee2b2142ec255448a",
+  "run_started_at": "2026-09-25T22:14:58Z",
+  "run_finished_at": "2026-09-25T22:20:10Z",
+  "receipts": 100,
+  "receipts_seed": 7,
+  "db_seed": 42,
+  "db_members": 300,
+  "reference_date": "2026-09-25",
+  "labels_sha256": "7ab0d5c326288b663108862a465f1e88b0478ae74750ca2d0a8362fa360ed9c9",
+  "extractions_sha256": "9481d8b10e1e0beb9f5b10d70e9fc0328daa9edec5f94342982cfcabf46dca05",
+  "total_cost_usd": 0.34768
+}

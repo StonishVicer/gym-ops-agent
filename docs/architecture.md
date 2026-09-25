@@ -44,11 +44,12 @@ flowchart LR
     GEN --> IMG
     GEN --> LBL
     IMG -->|"base64 image"| EXT
-    EXT -->|"anthropic SDK<br/>base_url + api_key"| OR
+    EXT -->|"anthropic SDK<br/>base_url + auth_token"| OR
     OR --> CL
     CL -->|"tool_use: record_payment"| OR
     OR -->|"tool_use + usage"| EXT
-    EXT -->|"Pydantic-validated<br/>UPSERT (rw)"| XP
+    EXT -->|"validated + normalized<br/>UPSERT (rw)"| XP
+    EXT -->|"one record per receipt"| XJ[/"extractions.jsonl"/]
     EXT -->|"per-call usage, latency"| EVAL
     LBL --> EVAL
     EVAL --> REP
@@ -78,17 +79,24 @@ sequenceDiagram
     participant C as Claude
     participant D as gym.db
     X->>S: messages.create(image, tools=[record_payment],<br/>tool_choice=record_payment, temperature=0)
-    S->>O: POST /api/v1/messages
+    S->>O: POST /api/v1/messages (SDK retries 429/5xx, max 3 attempts)
     O->>C: route
-    C-->>O: tool_use{...} + usage
+    C-->>O: tool_use{fields as printed} + usage
     O-->>S: response
     S-->>X: Message (t = perf_counter delta)
-    X->>X: ExtractedPayment.model_validate(tool_use.input)
-    alt valid
-        X->>D: INSERT ... ON CONFLICT(receipt_id) DO UPDATE
-    else invalid
-        X->>X: log ExtractionFailure (no insert, no retry)
+    X->>X: ReceiptReading.model_validate(tool_use.input)
+    opt invalid (once)
+        X->>S: same request + tool_result(is_error=true, field errors)
+        S-->>X: Message
     end
+    X->>X: normalize → ExtractedPayment (cents, ISO date, canonical bank)
+    X->>D: resolve payer → member_id (ADR-0006)
+    alt valid and normalized
+        X->>D: INSERT ... ON CONFLICT(receipt_id) DO UPDATE
+    else still invalid, or unparseable
+        X->>D: DELETE stale row for receipt_id (failure recorded, never stored)
+    end
+    X->>X: append record to data/extractions.jsonl
 ```
 
 ## 2. Data model
@@ -165,7 +173,7 @@ Additional constraints not expressible in Mermaid:
 
 - `checkins`: `UNIQUE (member_id, slot_id)` — a member checks in to a slot at most once.
 - `expected_payments`: `UNIQUE (membership_id, due_date)`.
-- `extracted_payments.member_id` is resolved by the extractor (reference lookup, then normalized-name lookup) and may be `NULL` for unidentifiable payers — these surface as unidentified transfers (reason `unknown_payer`) in reconciliation. Links between transfers and bills are **not stored**: `reconcile_payments` computes them at query time (SPEC FR-14, ADR-0005), which keeps the MCP server read-only.
+- `extracted_payments.member_id` is resolved by the extractor from the payer name (normalized exact match, ADR-0006) and may be `NULL` for unidentifiable payers — these surface as unidentified transfers (reason `unknown_payer`) in reconciliation. Links between transfers and bills are **not stored**: `reconcile_payments` computes them at query time (SPEC FR-14, ADR-0005), which keeps the MCP server read-only.
 
 ### Indexes
 
@@ -193,7 +201,7 @@ Each index is justified by a `WHERE` / `JOIN` / `GROUP BY` in a specific tool (v
 | `gym_ops.config` | `Settings` (pydantic-settings, `.env`), prices, seed | — |
 | `gym_ops.db` | DDL, connection factories (`get_write_connection`, `get_readonly_connection`), seeder | rw (seed) |
 | `gym_ops.receipts` | `generate`: pick real bills per FR-5 scenario (deterministic from `--seed`), assign templates and difficulty; `render`: draw PNGs for 3 fictional bank layouts (bundled DejaVu Sans, SHA-256-pinned; watermark; rotation/blur/JPEG noise); `labels`: `ReceiptLabel` with `truth` + reconciliation `expected`. Writes `data/receipts/*.png` and `data/labels.jsonl`. An oracle test replays `truth` through `reconcile.py` on a DB copy | ro |
-| `gym_ops.extractor` | Anthropic client via OpenRouter, forced tool use, validation, upsert | rw (`extracted_payments` only) |
+| `gym_ops.extractor` | `client`: Anthropic SDK → OpenRouter; `schema`: `ReceiptReading` (tool input, as printed) / `ExtractedPayment` (stored); `extract`: forced tool use, one validation retry; `normalize`: amounts, dates, banks, references; `resolve`: payer → member (ADR-0006); `store`: upsert + `extractions.jsonl`; `budget`: spend guards; `logs`: redacting JSON logs | rw (`extracted_payments` only) |
 | `gym_ops.mcp_server` | FastMCP stdio server, 4 tools, Pydantic I/O | **ro only** |
 | `gym_ops.eval` | Run extractor over labels, metrics, gates, reports | ro + extractor |
 
@@ -201,6 +209,7 @@ Each index is justified by a `WHERE` / `JOIN` / `GROUP BY` in a specific tool (v
 
 Current envelope: ~300 members, ~500 slots, ~10k check-ins, ≤ 500 receipts/month — every tool query is index-backed and sub-100 ms (NFR-8).
 
-- **Extractor failures:** SDK `max_retries=2` with backoff for 429/5xx; 30 s timeout; per-receipt failure isolation (one bad receipt never aborts the run); upsert makes re-runs idempotent.
-- **Cost control:** fixed `max_tokens=512`; eval prints projected spend before running (N × mean historical cost).
+- **Extractor failures:** SDK `max_retries=2` (3 attempts) with exponential backoff + jitter for 429/5xx/connection errors; 30 s timeout; one validation retry with the error as an `is_error` tool_result; per-receipt failure isolation (one bad receipt never aborts the run); upsert makes re-runs idempotent.
+- **Cost control:** fixed `max_tokens=512`; before a batch, `GET /api/v1/key` must show `limit_remaining ≥ 2 × N × $0.005` or the run does not start; a run stops once its own estimated cost passes $1.00.
+- **Log hygiene:** JSON logs on stderr pass through a redacting filter (API key, `Authorization` / `x-api-key` values, base64 blobs); SDK/HTTP loggers are capped at WARNING.
 - **Beyond this envelope:** Message Batches API direct to Anthropic for bulk extraction; PostgreSQL with a read-only role and per-gym RLS; HTTP MCP transport with authz (see "Revisit at scale" in each ADR).

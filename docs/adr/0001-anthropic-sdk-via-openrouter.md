@@ -1,6 +1,6 @@
 # ADR-0001: Use the Anthropic Python SDK pointed at OpenRouter
 
-- **Status:** Accepted
+- **Status:** Accepted (amended 2026-09-25, Phase 5: `auth_token`, `temperature` via `extra_body`)
 - **Date:** 2026-09-25
 
 ## Context
@@ -27,13 +27,16 @@ A hard constraint from the dev environment: the `ANTHROPIC_BASE_URL` / `ANTHROPI
 ```python
 anthropic.Anthropic(
     base_url="https://openrouter.ai/api",
-    api_key=settings.require_openrouter_api_key().get_secret_value(),
+    auth_token=settings.require_openrouter_api_key().get_secret_value(),
     max_retries=2,
     timeout=30.0,
 )
 ```
 
-- `base_url` and `api_key` are always passed as arguments; the code never reads or sets `ANTHROPIC_*` env vars.
+- `base_url` and the key are always passed as arguments; the code never reads or sets `ANTHROPIC_*` env vars.
+- **`auth_token`, not `api_key`** (verified against the installed `anthropic` 1.8.0): `api_key` is sent as `x-api-key`, while `auth_token` is sent as `Authorization: Bearer`, which is how OpenRouter authenticates. Passing any explicit credential also stops the SDK from reading `ANTHROPIC_API_KEY` / `ANTHROPIC_AUTH_TOKEN`, so no second credential can ride along. `tests/extractor/test_client.py::test_env_credentials_never_used` sets all three `ANTHROPIC_*` variables and asserts the request goes to `https://openrouter.ai/api` with only `Authorization: Bearer <OpenRouter key>` and no `x-api-key`.
+- **`temperature=0` via `extra_body`.** `anthropic` 1.x removed the sampling parameters from `messages.create()`'s signature, but not from the API. Haiku 4.5 still honours them, so the extractor sends `extra_body={"temperature": 0}` (SPEC A-4). A move to a model that rejects sampling parameters (Opus 4.7 and later) must drop it.
+- `anthropic` 1.x runs on `httpx2`; tests inject an `httpx2.MockTransport` into the production client, so no test touches the network.
 - The model ID comes from `Settings.MODEL_ID`; per-MTok prices come from `Settings.INPUT_USD_PER_MTOK` / `OUTPUT_USD_PER_MTOK` with a dated source comment.
 - Cost is computed locally from `response.usage`, not from OpenRouter billing data.
 
@@ -41,7 +44,7 @@ anthropic.Anthropic(
 
 **Easier**
 - Code reads as idiomatic Claude API usage — the point of the portfolio.
-- Moving to Anthropic direct (Option C) is a three-value config change.
+- Moving to Anthropic direct (Option C) is a three-value config change: `base_url`, the key (an Anthropic key goes in `api_key`, because Anthropic authenticates with `x-api-key`), and the model id (`claude-haiku-4-5-20251001`).
 - Typed SDK responses slot straight into Pydantic validation.
 
 **Harder**

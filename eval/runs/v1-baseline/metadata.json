@@ -1,0 +1,19 @@
+{
+  "name": "v1-baseline",
+  "split": "dev",
+  "prompt_version": "v1",
+  "prompt_sha256": "3cb10ef0f772270befac4595841be5be6021ec68c6858d0bc95db321db6872f1",
+  "tool_schema_sha256": "fc65bc0f1d2cba2873fb855b11dfe28096c31b70db4b1d46de02f1b7aefea2f1",
+  "model_id": "anthropic/claude-haiku-4.5",
+  "git_sha": "4e33288e8402b6c129bcdd9124bf7f0dc52b0a3b",
+  "run_started_at": "2026-09-25T21:59:44Z",
+  "run_finished_at": "2026-09-25T22:04:56Z",
+  "receipts": 100,
+  "receipts_seed": 7,
+  "db_seed": 42,
+  "db_members": 300,
+  "reference_date": "2026-09-25",
+  "labels_sha256": "7ab0d5c326288b663108862a465f1e88b0478ae74750ca2d0a8362fa360ed9c9",
+  "extractions_sha256": "2aff45d6d948ea4c30a51ddd4c34d321255af6483f9f8bcad6fc95b7824ba8de",
+  "total_cost_usd": 0.345395
+}
