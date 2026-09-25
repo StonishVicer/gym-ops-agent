@@ -7,22 +7,19 @@ receipt's `expected` block exactly. With this at 100%, any eval error is attribu
 to extraction, not to the dataset or the rules.
 """
 
-import calendar
 import shutil
-from datetime import date
 from pathlib import Path
 
 import pytest
 
 from gym_ops.config import Settings
-from gym_ops.db.connection import get_readonly_connection, get_write_connection
+from gym_ops.db.connection import get_write_connection
+from gym_ops.eval.e2e import reconcile_all_months
 from gym_ops.extractor.resolve import MemberDirectory
 from gym_ops.mcp_server.models import LinkRule
-from gym_ops.mcp_server.reconcile import load_and_reconcile
-from gym_ops.receipts.labels import Expected, ReceiptLabel
+from gym_ops.receipts.labels import ReceiptLabel
 from tests.receipts.conftest import WINDOW_DAYS, GeneratedSet
 
-BILLED_MONTHS = "SELECT DISTINCT substr(due_date, 1, 7) FROM expected_payments ORDER BY 1"
 INSERT_TRANSFER = (
     "INSERT INTO extracted_payments (receipt_id, member_id, payer_name, amount_cents, "
     "currency, transfer_date, reference, bank_name, model_id, input_tokens, output_tokens, "
@@ -56,41 +53,6 @@ def _load_truth(db: Path, labels: list[ReceiptLabel]) -> None:
         conn.close()
 
 
-def _reconcile_all_months(db: Path) -> tuple[dict[str, Expected], dict[str, LinkRule], set[str]]:
-    """Per receipt: observed outcome and link rule; plus every bill that got a transfer."""
-    observed: dict[str, Expected] = {}
-    rules: dict[str, LinkRule] = {}
-    touched_bills: set[str] = set()
-    conn = get_readonly_connection(db)
-    try:
-        for (month,) in conn.execute(BILLED_MONTHS).fetchall():
-            year, mon = map(int, month.split("-"))
-            start = date(year, mon, 1)
-            end = date(year, mon, calendar.monthrange(year, mon)[1])
-            result = load_and_reconcile(conn, start, end, WINDOW_DAYS)
-            for bill in result.bills:
-                if bill.transfers:
-                    touched_bills.add(bill.reference)
-                for tr in bill.transfers:
-                    assert tr.receipt_id not in observed, f"{tr.receipt_id} counted twice"
-                    observed[tr.receipt_id] = Expected(
-                        bill_reference=bill.reference,
-                        bill_status_after_reconciliation=bill.status,
-                        unidentified_reason=None,
-                    )
-                    rules[tr.receipt_id] = tr.link_rule
-            for un in result.unidentified:
-                assert un.receipt_id not in observed, f"{un.receipt_id} counted twice"
-                observed[un.receipt_id] = Expected(
-                    bill_reference=None,
-                    bill_status_after_reconciliation=None,
-                    unidentified_reason=un.reason,
-                )
-    finally:
-        conn.close()
-    return observed, rules, touched_bills
-
-
 def test_window_matches_settings_default() -> None:
     assert Settings.model_fields["MATCH_WINDOW_DAYS"].default == WINDOW_DAYS
 
@@ -104,7 +66,10 @@ def test_every_receipt_reconciles_as_labelled(
     shutil.copy(generated.db_path, db)  # never touch data/gym.db or the shared seed
     _load_truth(db, generated.labels)
 
-    observed, rules, touched_bills = _reconcile_all_months(db)
+    # The eval's month loop (gym_ops.eval.e2e): oracle and eval share one code path.
+    rec = reconcile_all_months(db, WINDOW_DAYS)
+    observed, rules = rec.observed, rec.rules
+    touched_bills = {o.bill_reference for o in observed.values() if o.bill_reference}
 
     mismatches = {
         label.receipt_id: (label.scenario, label.expected, observed.get(label.receipt_id))
