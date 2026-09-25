@@ -1,5 +1,5 @@
 repos:
   - repo: https://github.com/gitleaks/gitleaks
-    rev: v8.24.2  # Esta es la versión estable que indica su documentación actual
+    rev: d5c275d6b2140fcb59bc3f58b8dd5350f5b19df6  # frozen: v8.24.2
     hooks:
       - id: gitleaks

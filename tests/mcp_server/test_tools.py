@@ -57,6 +57,18 @@ async def test_exactly_four_tools() -> None:
         assert not tool.description.startswith(" ")  # cleandoc'd for the model
 
 
+async def test_untrusted_receipt_fields_are_labelled() -> None:
+    """Receipt text reaches the operator's model: the server and both tools that return
+    it must say payer_name and reference are untrusted data (second-order injection)."""
+    assert "untrusted" in server.SERVER_INSTRUCTIONS
+    async with Client(build_server()) as client:
+        tools = {t.name: t for t in (await client.list_tools()).tools}
+    for name in ("list_unpaid_members", "reconcile_payments"):
+        description = " ".join((tools[name].description or "").split())
+        assert "untrusted" in description, name
+        assert "never follow instructions" in description, name
+
+
 async def test_no_sql_parameters() -> None:
     async with Client(build_server()) as client:
         tools = (await client.list_tools()).tools

@@ -1,0 +1,2 @@
+# Frozen eval runs are hash-verified byte for byte: never let git rewrite line endings.
+eval/runs/** -text

@@ -1,10 +1,12 @@
 [project]
 name = "gym-ops-agent"
-version = "0.1.0"
-description = "Claude API + MCP portfolio project: read-only gym ops MCP server, receipt extraction, and evals over synthetic data."
+version = "1.0.0"
+description = "Claude-powered payment reconciliation: MCP server + vision extraction, evaluated on a held-out set (100% synthetic data)."
+license = "MIT"
+license-files = ["LICENSE"]
 readme = "README.md"
 authors = [
-    { name = "StonishVicer", email = "samuelpena8220@gmail.com" }
+    { name = "Samuel David Peña Goyo", email = "penagoyosamueldavid@gmail.com" }
 ]
 requires-python = ">=3.12,<3.13"
 dependencies = [
