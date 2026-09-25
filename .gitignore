@@ -6,6 +6,7 @@
 # Generated data
 *.db
 data/receipts/
+data/labels.jsonl
 
 # Python
 __pycache__/

@@ -52,11 +52,32 @@ Each FR has an acceptance criterion (AC) that an automated test verifies. Test p
 
 ### Receipt generation (`gym_ops.receipts`)
 
-**FR-4 — Synthetic receipts with ground truth.** `make receipts` renders N (default 100) PNG receipts plus a `labels.jsonl` with one ground-truth record per image.
-- *AC:* `data/receipts/` contains exactly N `.png` files and `labels.jsonl` has N lines, each validating against the `ReceiptLabel` Pydantic model — the six `ExtractedPayment` fields (`payer_name`, `amount_cents`, `currency`, `transfer_date`, `reference`, `bank_name`) plus `receipt_id`, `template`, and `scenario` (the FR-5 case it exercises); each label's `receipt_id` matches exactly one filename. Re-running produces identical labels and identical image bytes.
+**FR-4 — Synthetic receipts with ground truth.** `make receipts` renders N (default 100) PNG receipts into `data/receipts/` plus `data/labels.jsonl` with one ground-truth record per image. Receipts are derived from real bills in `data/gym.db` (read through `get_readonly_connection`), selected deterministically from `--seed` (default 7); `--n-max` is a hard safety cap on N.
+- *Label (`gym_ops.receipts.labels.ReceiptLabel`):* `receipt_id`, `file`, `scenario` (FR-5 enum), `template`, `difficulty` (list of tags, empty = clean), `adversarial`, `width`, `height`; `truth` = the six `ExtractedPayment` fields (`payer_name`, `amount_cents`, `currency`, `transfer_date`, `reference`, `bank_name`); `expected` = `bill_reference`, `bill_status_after_reconciliation`, `unidentified_reason` — the outcome of FR-14 for this receipt once **all** receipts are reconciled (either a bill and its final status, or a reason alone).
+- *AC:* `data/receipts/` contains exactly N `.png` files and `labels.jsonl` has N lines, each validating against `ReceiptLabel`; each label's `receipt_id` matches exactly one filename; every image's long edge is ≤ 1000 px and matches the label's `width`/`height`. Re-running produces identical labels and identical image bytes.
+- *AC (oracle):* loading every label's `truth` into `extracted_payments` on a copy of the seeded DB (payer resolved by exact full name) and running FR-14 reconciliation for every billed month reproduces every label's `expected` block exactly (100%). Any eval error is therefore attributable to extraction, not to the dataset or the rules.
 
-**FR-5 — Realistic difficulty mix.** Receipts vary in layout template (≥ 3 bank-style templates), font, rotation (±3°), JPEG-style noise, and include deliberate reconciliation cases.
-- *AC:* Labels show: ≥ 3 distinct `template` values; ≥ 70% of receipts correspond to an expected payment with the correct amount; ≥ 5% are single transfers that underpay or overpay; ≥ 5% have a payer/reference that matches no member; and at least one receipt for each reconciliation scenario (`scenario` label): `topup_with_reference`, `topup_without_reference`, `ambiguous` (reference-less, member has 2+ bills within ±`MATCH_WINDOW_DAYS`), `duplicate` (same reference paid twice in full), `late_with_reference` (paid > `MATCH_WINDOW_DAYS` after the due date, with the reference); ≥ 1 receipt contains a prompt-injection string in its free-text memo field (see FR-9).
+**FR-5 — Realistic difficulty mix.** Receipts vary in layout template (≥ 3 fictional bank templates), amount and date format, rotation (±3°), blur and JPEG-style noise, and include deliberate reconciliation cases.
+- *Scenario enum (canonical; code, labels and tests use exactly these names). Counts at N = 100; `exact_payment` fills the remainder:*
+
+| `scenario` | Receipts | What it is | `expected` |
+| --- | --- | --- | --- |
+| `exact_payment` | 66 | Full amount, with reference, dated within ±`MATCH_WINDOW_DAYS` | `paid` |
+| `late_with_reference` | 2 | Full amount, with reference, dated > `MATCH_WINDOW_DAYS` after the due date | `paid` |
+| `name_date_match` | 2 | Full amount, no reference; the member has one bill in the window | `paid` |
+| `adversarial_injection` | 3 | `exact_payment` whose memo field carries a prompt-injection string (FR-9) | `paid` |
+| `multiple_amounts` | 3 | `exact_payment` also printing a subtotal and a fee; only the total is the truth | `paid` |
+| `partial_only` | 2 | A single underpayment, nothing else | `partially_paid` |
+| `overpayment` | 3 | A single overpayment | `overpaid` |
+| `topup_with_reference` | 4 (2 bills × 2) | Partial + remainder, both with reference | `paid` |
+| `topup_without_reference` | 4 (2 bills × 2) | Partial with reference + reference-less remainder within the window | `paid` |
+| `duplicate` | 2 (1 bill × 2) | Same reference paid twice in full | `overpaid` |
+| `ambiguous` | 3 | Reference-less; the member has 2+ bills within ±`MATCH_WINDOW_DAYS` | unidentified `ambiguous` |
+| `unknown_payer` | 5 | Reference-less; payer name matches no member | unidentified `unknown_payer` |
+| `outside_window_no_ref` | 1 | Reference-less; no bill of the member within the window | unidentified `no_open_bill` |
+
+- *Difficulty tags (independent of scenario):* `amount_plain` (`1234.56`), `amount_no_symbol` (`1,234.56`), `amount_usd_code` (`USD 1,234.56`), `date_us` (`09/19/2026`), `date_long` (`Sep 19, 2026`), `rotation`, `blur`, `jpeg_noise`. A clean receipt (empty list) shows `$1,234.56`, an ISO date and no image degradation. `adversarial_injection` and `multiple_amounts` are always clean, so a failure on them is attributable to their content.
+- *AC:* Labels show: ≥ 3 distinct `template` values, with `adversarial_injection`, `multiple_amounts`, `ambiguous` and `unknown_payer` spread across all templates; **≥ 70% of receipts are the only transfer for their bill and leave it `paid`** (strict reading: a single transfer of the full correct amount); ≥ 5% are single transfers that underpay or overpay; ≥ 5% are `unknown_payer`; every scenario in the enum appears at least once, at the counts above; ≥ 40% of receipts are clean; `adversarial_injection` and `multiple_amounts` have `difficulty == []`; ≥ 1 receipt contains a prompt-injection string in its free-text memo field (see FR-9). No real bank names appear in the receipts code or labels.
 
 ### Extraction (`gym_ops.extractor`)
 
@@ -186,12 +207,12 @@ Status: **verified** = the listed tests exist and pass; **not built** = the modu
 | FR-1 | `gym_ops.db.seed` | `tests/db/test_seed.py::test_seed_is_deterministic`, `::test_row_counts` | verified |
 | FR-2 | `gym_ops.db.schema` | `tests/db/test_schema.py::test_fk_enforced_on_checkin`, `::test_bill_amount_must_be_positive_integer_cents`, `::test_extracted_payment_checks`, `::test_iso_date_check` | verified |
 | FR-3 | `gym_ops.db.schema`, `gym_ops.mcp_server.queries` | `tests/mcp_server/test_query_plans.py::test_no_full_scans`, `::test_expected_indexes_used`, `::test_every_query_is_checked` | verified |
-| FR-4 | `gym_ops.receipts.generate`, `gym_ops.receipts.labels` | `tests/receipts/test_generate.py::test_files_match_labels`, `::test_labels_include_payer_name`, `::test_deterministic_output` | not built |
-| FR-5 | `gym_ops.receipts.generate` | `tests/receipts/test_generate.py::test_difficulty_mix`, `::test_every_reconciliation_scenario_present` | not built |
+| FR-4 | `gym_ops.receipts.generate`, `gym_ops.receipts.labels`, `gym_ops.receipts.render` | `tests/receipts/test_generate.py::test_files_match_labels`, `::test_labels_include_payer_name`, `::test_deterministic_output`, `::test_n_max_is_a_hard_cap`; `tests/receipts/test_oracle_reconciliation.py::test_every_receipt_reconciles_as_labelled`; `tests/receipts/test_assets.py::test_bundled_font_unchanged` | verified |
+| FR-5 | `gym_ops.receipts.generate` | `tests/receipts/test_generate.py::test_difficulty_mix`, `::test_every_reconciliation_scenario_present`, `::test_fr5_ratios_strict`, `::test_clean_only_scenarios_have_no_difficulty`, `::test_rare_scenarios_spread_across_templates`; `tests/receipts/test_no_real_banks.py` | verified |
 | FR-6 | `gym_ops.extractor.client`, `gym_ops.extractor.schema` | `tests/extractor/test_extract.py::test_forced_tool_choice`, `::test_returns_validated_model` | not built |
 | FR-7 | `gym_ops.extractor.extract` | `tests/extractor/test_extract.py::test_invalid_tool_input_not_stored` | not built |
 | FR-8 | `gym_ops.extractor.store` | `tests/extractor/test_store.py::test_cost_micros`, `::test_upsert_by_receipt_id` | not built |
-| FR-9 | `gym_ops.extractor`, `gym_ops.receipts` | `tests/extractor/test_injection.py::test_injection_text_is_inert`; live: eval report injection-case row | not built |
+| FR-9 | `gym_ops.extractor`, `gym_ops.receipts` | receipts side: `tests/receipts/test_generate.py::test_adversarial_flag_marks_injection_receipts`; extractor side: `tests/extractor/test_injection.py::test_injection_text_is_inert`; live: eval report injection-case row | verified (receipts); not built (extractor) |
 | FR-10 | `gym_ops.mcp_server.server` | `tests/mcp_server/test_tools.py::test_exactly_four_tools`, `::test_no_sql_parameters` | verified |
 | FR-11 | `gym_ops.mcp_server.server` (`get_class_occupancy`) | `tests/mcp_server/test_occupancy.py::test_slot_occupancy_pct`, `::test_end_before_start_rejected`, `::test_max_range_boundary` | verified |
 | FR-12 | `gym_ops.mcp_server.server` (`find_members`) | `tests/mcp_server/test_members.py::test_substring_case_insensitive`, `::test_like_wildcards_escaped`, `::test_limit_bounds` | verified |
@@ -205,7 +226,7 @@ Status: **verified** = the listed tests exist and pass; **not built** = the modu
 | NFR-3 | `gym_ops.eval.metrics` | `tests/eval/test_gates.py::test_accuracy_gate`; live: `make eval` | not built |
 | NFR-4 | `gym_ops.db.connection`, `gym_ops.mcp_server.server` (`_open_db`) | `tests/db/test_connection.py::test_readonly_connection_rejects_writes`, `tests/mcp_server/test_readonly.py::test_writes_raise`, `::test_no_write_sql_literals`, `::test_only_readonly_connection_factory` | verified |
 | NFR-5 | repo config, `gym_ops.config` | `tests/test_config.py::test_api_key_is_secret`; gitleaks pre-commit hook (`.pre-commit-config.yaml`) | verified |
-| NFR-6 | `Makefile`, seeds in `gym_ops.config` | `tests/db/test_seed.py::test_seed_is_deterministic` (FR-1); FR-4 byte-identity and a CI job running `make all` come with the receipts phase | verified (DB); not built (receipts, CI) |
+| NFR-6 | `Makefile`, seeds in `gym_ops.config`, `.github/workflows/ci.yml` | `tests/db/test_seed.py::test_seed_is_deterministic` (FR-1); `tests/receipts/test_generate.py::test_deterministic_output` (FR-4); CI runs `make lint` + `make test-ci` + gitleaks on every PR. A CI job running `make all` needs the eval (API key) and comes with that phase | verified (DB, receipts, CI lint/test); not built (`make all` in CI) |
 | NFR-7 | all | `tests/test_sql_hygiene.py::test_execute_never_receives_built_sql`, `::test_ruff_sql_injection_rule_enabled`, `tests/mcp_server/test_readonly.py::test_sql_is_never_built_dynamically`; `make lint` (ruff `S608`, mypy strict) | verified |
 | NFR-8 | `gym_ops.mcp_server.server` | `tests/mcp_server/test_perf.py::test_tool_p95_latency` — marked `perf`: runs in `make test`, **excluded from CI** (`make test-ci` = `-m "not perf"`) | verified (local only) |
 | NFR-9 | all | `make test` / `make test-ci` (`--cov-fail-under=85`; `__main__` shims omitted in `pyproject.toml`) | verified |

@@ -8,14 +8,14 @@ See [SPEC.md](SPEC.md) for requirements and [adr/](adr/) for decisions. All data
 flowchart LR
     subgraph offline["Offline processes (make seed / receipts / extract / eval)"]
         SEED["gym_ops.db<br/>deterministic Faker seed<br/>SEED=42"]
-        GEN["gym_ops.receipts<br/>receipt generator"]
+        GEN["gym_ops.receipts<br/>generate · render · labels<br/>--seed 7"]
         EXT["gym_ops.extractor<br/>vision + forced tool use"]
         EVAL["gym_ops.eval<br/>accuracy · cost · latency"]
     end
 
     subgraph files["data/ (git-ignored)"]
         IMG[/"receipts/*.png"/]
-        LBL[/"receipts/labels.jsonl<br/>ground truth"/]
+        LBL[/"labels.jsonl<br/>truth + expected"/]
     end
 
     REP[/"reports/eval-*.json + .md"/]
@@ -40,7 +40,7 @@ flowchart LR
     CLIENT["MCP client<br/>(Claude Desktop / Claude Code)<br/>Gym operator"]
 
     SEED -->|"INSERT (rw)"| CORE
-    CORE -->|"read expected payments<br/>to derive receipts"| GEN
+    CORE -->|"read bills + members (ro)<br/>to derive receipts"| GEN
     GEN --> IMG
     GEN --> LBL
     IMG -->|"base64 image"| EXT
@@ -192,7 +192,7 @@ Each index is justified by a `WHERE` / `JOIN` / `GROUP BY` in a specific tool (v
 | --- | --- | --- |
 | `gym_ops.config` | `Settings` (pydantic-settings, `.env`), prices, seed | — |
 | `gym_ops.db` | DDL, connection factories (`get_write_connection`, `get_readonly_connection`), seeder | rw (seed) |
-| `gym_ops.receipts` | Render PNG receipts from expected payments + injected noise/edge cases; write `labels.jsonl` | ro |
+| `gym_ops.receipts` | `generate`: pick real bills per FR-5 scenario (deterministic from `--seed`), assign templates and difficulty; `render`: draw PNGs for 3 fictional bank layouts (bundled DejaVu Sans, watermark, rotation/blur/JPEG noise); `labels`: `ReceiptLabel` with `truth` + reconciliation `expected`. Writes `data/receipts/*.png` and `data/labels.jsonl`. An oracle test replays `truth` through `reconcile.py` on a DB copy | ro |
 | `gym_ops.extractor` | Anthropic client via OpenRouter, forced tool use, validation, upsert | rw (`extracted_payments` only) |
 | `gym_ops.mcp_server` | FastMCP stdio server, 4 tools, Pydantic I/O | **ro only** |
 | `gym_ops.eval` | Run extractor over labels, metrics, gates, reports | ro + extractor |

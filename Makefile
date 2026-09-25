@@ -10,7 +10,7 @@ seed:
 	$(UV_RUN) python -m gym_ops.db
 
 receipts:
-	$(UV_RUN) python -m gym_ops.receipts
+	$(UV_RUN) python -m gym_ops.receipts.generate --n-max 100 --seed 7
 
 # `@`: make must not echo the recipe to stdout, which is the MCP protocol channel.
 mcp:
