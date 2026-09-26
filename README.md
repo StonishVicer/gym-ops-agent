@@ -2,6 +2,8 @@
 
 Claude reads bank-transfer receipts into validated records, and a read-only MCP server reconciles them against a gym's bills. The system is measured on a held-out set with a frozen, hash-verified eval.
 
+**Highlights:** MCP server design · LLM tool use with vision · evaluation methodology (held-out set, confidence intervals) · prompt-injection defense · cost-aware AI engineering
+
 [![CI](https://github.com/StonishVicer/gym-ops-agent/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/StonishVicer/gym-ops-agent/actions/workflows/ci.yml)
 [![coverage 98% (v1.0.0)](https://img.shields.io/badge/coverage-98%25%20%28v1.0.0%29-brightgreen)](https://github.com/StonishVicer/gym-ops-agent/actions/runs/36201557613)
 [![Python 3.12](https://img.shields.io/badge/python-3.12-blue)](.python-version)
@@ -20,6 +22,8 @@ Claude Haiku 4.5 via OpenRouter, prompt v2, on the held-out set (`v2-holdout`). 
 | reference | 98.0% [93.0, 99.4] (98/100) |
 | bank_name | 98.0% [93.0, 99.4] (98/100) |
 | **all six fields** | **98.0% [93.0, 99.4] (98/100)** |
+
+All six rows are identical because the only errors were 2 whole-receipt extraction failures (`hold-0002`, `hold-0069`); no stored reading had a wrong field.
 
 | Metric | Result |
 | --- | --- |
