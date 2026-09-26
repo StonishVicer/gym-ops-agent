@@ -32,9 +32,9 @@ Held-out set, n = 100, results indicative. Full numbers, gates and per-run detai
 
 ## Demo
 
-<!-- TODO: record docs/demo.gif — Claude Desktop connected to the MCP server, asking
-"who hasn't paid for September?" and "reconcile August". Then add it here:
-![Demo: asking the gym-ops MCP server who hasn't paid](docs/demo.gif) -->
+![Claude Desktop reconciling September 2026 payments through the gym-ops MCP server](docs/demo.gif)
+
+*Asked "Reconcile the September 2026 payments. What needs my review?", Claude answers from the read-only MCP tools querying the synthetic database. The dataset includes transfers for a sample of bills only, so most bills show as unpaid by design.*
 
 Two of the 100 dev receipts, generated deterministically (`make docs-img`, seed 7). The adversarial one carries a prompt injection in its memo. On all 3 adversarial holdout receipts the model flagged the injection and still returned the true amount.
 
